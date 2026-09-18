@@ -485,6 +485,12 @@ function create_objective(mpc::MPC,F,Φ,Γ,C,w::MPCWeights,nu::Int,nx::Int)
         xsf = Cf'*Qf*yo[pos_ids_Qf]
         xsf[1:nxp] .+= mpc.weights.Qfx*mpc.model.xo
         f -= Γ'*[repeat(xs,N);xsf]
+    elseif(!iszero(mpc.model.xo) && !iszero(mpc.weights.Qfx))
+        # Under reference tracking the output cost is already centered on the reference, so only
+        # the terminal state weight is centered on the operating point.
+        xsf = zeros(nx)
+        xsf[1:nxp] = mpc.weights.Qfx*mpc.model.xo
+        f -= Γ'*[zeros(N*nx);xsf]
     end
 
     # ==== From x' S u ====

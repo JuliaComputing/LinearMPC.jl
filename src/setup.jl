@@ -189,12 +189,14 @@ using MatrixEquations
 Sets the terminal cost to the infinite horizon LQR cost of the stage cost defined by `Q`, `R` and the
 cross term `S`. The terminal state weight `Qfx` is set to the solution of the Riccati equation, and the
 terminal output weight `Qf` is set to zero, so that the terminal cost equals the LQR cost-to-go.
+The control-increment penalty `Rr` is not part of that stage cost and is therefore ignored.
+
+The resulting quadratic form is centered on the operating point `mpc.model.xo`
+(see [`set_operating_point!`](@ref)), which defaults to the origin. Under reference tracking it
+stays centered there as the tracked reference moves, so the terminal cost is the cost-to-go of the
+regulation problem around the operating point rather than around the reference.
 """
 function set_terminal_cost!(mpc)
-    if mpc.settings.reference_tracking
-        @warn "LQR cost not valid for reference tracking problems. Instead, use set_objective! to set Qf"
-        return false
-    end
     S = isempty(mpc.weights.S) ? zeros(mpc.model.nx, mpc.model.nu) : mpc.weights.S
     Qfx, _, _ = ared(mpc.model.F, mpc.model.G, mpc.weights.R, mpc.model.C'*mpc.weights.Q*mpc.model.C, S) # solve Riccati
     mpc.weights.Qfx .= Qfx
