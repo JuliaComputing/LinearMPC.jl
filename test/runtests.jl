@@ -2193,6 +2193,32 @@ Random.seed!(1234)
             @test bu2 ≈ bu3[[2, 1, 3]]
         end
     end
+    @testset "Constraint blocks exempt from tightening" begin
+        # A block added with tighten = false keeps its nominal bounds, the other block is tightened as
+        # when it is the only block
+        F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
+        function bounds(blocks; robust)
+            mpc = LinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
+            mpc.settings.preprocess_mpqp = false
+            for (Ax, tighten) in blocks
+                add_constraint!(mpc; Ax, lb=[-1.0], ub=[1.0], ks=2:10, tighten)
+            end
+            if robust
+                set_x0_uncertainty!(mpc, [0.01, 0.02])
+                set_disturbance!(mpc, [-1e-3], [1e-3]; Bw=G)
+            end
+            mpqp = LinearMPC.mpc2mpqp(mpc)
+            mpqp.bu, mpqp.bl
+        end
+        a1, a2 = [1.0 0.0], [0.0 1.0]
+        bu, bl = bounds([(a1, true), (a2, false)]; robust=true)
+        bu1, bl1 = bounds([(a1, true)]; robust=true)
+        bu2, bl2 = bounds([(a2, true)]; robust=false)
+        @test bu ≈ [bu1; bu2]
+        @test bl ≈ [bl1; bl2]
+        @test all(bu1 .< 1.0)
+        @test LinearMPC.Constraint(zeros(1, 1), a1, zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), [1.0], [-1.0], 1:1, false, false, 0).tighten
+    end
     @testset "Constant offset" begin
         F,G = [1 0.1; 0 1], [0.005;0.1;;] # double integrator with Ts=0.1
         mpc= LinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;], f_offset = [0.1;0.1])
