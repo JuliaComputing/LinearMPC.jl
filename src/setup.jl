@@ -49,9 +49,9 @@ end
 """
     add_constraint!(mpc::MPC;
         Ax, Au, Ar, Aw, Ad, Aup, Ap,
-        ub, lb, ks, soft, binary, prio)
+        ub, lb, ks, soft, binary, prio, tighten)
     add_constraint!(mpc;Ax,Au,ub,lb,
-                    ks, soft, binary,prio)
+                    ks, soft, binary,prio,tighten)
 
 Adds the constraints lb ≤ Ax xₖ + Au uₖ ≤ ub for the time steps k ∈ ks
 (additional terms Ar rₖ, Aw wₖ, Ad dₖ, Aup u⁻ₖ, Ap pₖ are possible)
@@ -63,11 +63,17 @@ control (`Au` or `Aup` nonzero), and `ks = 2:Np+1` otherwise, since `x₀` canno
 * `soft` marks if the constraint should be softened (default false)
 * `binary` marks if either the upper or lower bounds should be enforced with equality (default false)
 * `prio` marks the relative priority of the constraint (default 0)
+* `tighten` marks if the constraint is tightened by the worst-case deviation of the state when a
+  disturbance (`set_disturbance!`) or an uncertainty of the initial state (`set_x0_uncertainty!`) is
+  given (default true). Constraints that define a decision variable in terms of the predicted state,
+  such as the inequalities of a McCormick relaxation of a product, are relations of the nominal
+  prediction rather than requirements on the true state; tightening them in both directions makes
+  them infeasible, so they are added with `tighten = false`.
 """
 function add_constraint!(mpc::MPC;
         Ax = nothing, Au= nothing, Ar = zeros(0,0), Aw = zeros(0,0), Ad = zeros(0,0), Aup = zeros(0,0), Ap = zeros(0,0),
         ub = zeros(0), lb = zeros(0),
-        ks = nothing, soft=false, binary=false, prio = 0)
+        ks = nothing, soft=false, binary=false, prio = 0, tighten = true)
     if isnothing(Ax) && isnothing(Au)
         return
     end
@@ -87,7 +93,7 @@ function add_constraint!(mpc::MPC;
     Ax = isnothing(Ax) ? zeros(m,mpc.model.nx) : Ax
     Au = isnothing(Au) ? zeros(m,mpc.model.nu) : Au
 
-    push!(mpc.constraints,Constraint(Au,Ax,Ar,Aw,Ad,Aup,Ap,ub,lb,ks,soft,binary,prio))
+    push!(mpc.constraints,Constraint(Au,Ax,Ar,Aw,Ad,Aup,Ap,ub,lb,ks,soft,binary,prio,tighten))
     mpc.mpqp_issetup = false
 end
 
@@ -518,7 +524,7 @@ and tightens the constraints so that they are satisfied for every such disturban
 (see [Robust MPC](@ref man_robust)). `Bw` (`nx × nw`) defaults to the identity, in which case
 `wmin` and `wmax` bound each state variable. A disturbance acting on the control inputs is given by
 `Bw = G` (or columns of it). `wmin` and `wmax` are vectors of length `nw`, or scalars applied to every
-component of `w`.
+component of `w`. Constraints added with `add_constraint!(mpc; ..., tighten = false)` are not tightened.
 """
 function set_disturbance!(mpc,wmin,wmax;Bw=nothing)
     nx = mpc.model.nx

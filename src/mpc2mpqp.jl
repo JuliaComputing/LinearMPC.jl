@@ -312,7 +312,7 @@ function create_general_constraints(mpc::MPC,F,Γ,Φ)
 
         ubi = repeat(c.ub,Ni,1)
         lbi = repeat(c.lb,Ni,1)
-        if(tighten_constraints)
+        if(tighten_constraints && c.tighten)
             FK = mpc.model.F-mpc.model.G*mpc.K
             Aupe = isempty(c.Aup) ? zeros(mi,nx) : -c.Aup*mpc.K
             ut,lt= constraint_tightening(Ax,FK,ks,mpc.model.wmin,mpc.model.wmax,mpc.Δx0;Aup=Aupe,Bw=mpc.model.Bw,F0=mpc.model.F)

@@ -15,7 +15,10 @@ struct Constraint
     soft::Bool
     binary::Bool
     prio::Int
+    tighten::Bool
 end
+Constraint(Au,Ax,Ar,Aw,Ad,Aup,Ap,ub,lb,ks,soft,binary,prio) =
+    Constraint(Au,Ax,Ar,Aw,Ad,Aup,Ap,ub,lb,ks,soft,binary,prio,true)
 
 # Weights used to define the objective function of the OCP
 struct MPCWeights

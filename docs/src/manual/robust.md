@@ -133,3 +133,5 @@ and a constraint row $a_x x_k + a_u u_k + a_{up} u_{k-1} \leq b$ deviates from i
 \qquad M_s = (a_x - a_u K)\Phi^s - a_{up} K \Phi^{s-1},
 ```
 where the last term is present for $s \geq 1$, and the lower bound is increased correspondingly. Constraints on $x_0$ are not tightened, since $x_0$ cannot be influenced. Without prestabilizing feedback, $\Phi = F$, and for an unstable or integrating system the tightening grows with the prediction horizon. Prestabilizing feedback keeps it bounded when $\Phi$ is stable.
+
+All general constraints (`add_constraint!`) and output bounds are tightened. A constraint that defines a decision variable in terms of the predicted state is a relation of the nominal prediction rather than a requirement on the true state: for example, the inequalities of a McCormick relaxation of a product $r = \delta v$ of a binary control $\delta$ and an affine function $v$ of the state hold $r = v$ with equality when $\delta = 1$, and tightening them in both directions leaves no feasible $r$. Such constraints are added with `add_constraint!(mpc; ..., tighten = false)`, which exempts them from the tightening.
