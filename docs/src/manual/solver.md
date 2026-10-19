@@ -1,6 +1,6 @@
 # [Solver Settings](@id man_solver)
 
-LinearMPC uses the [DAQP](https://darnstrom.github.io/daqp/) solver for solving quadratic programs. You can configure solver settings to adjust tolerances, iteration limits, and other parameters.
+DyadLinearMPC uses the [DAQP](https://darnstrom.github.io/daqp/) solver for solving quadratic programs. You can configure solver settings to adjust tolerances, iteration limits, and other parameters.
 
 ## Changing Settings
 
@@ -8,7 +8,7 @@ After setting up the MPC controller, you can modify solver settings using `DAQP.
 
 ```@tab
 # julia
-using LinearMPC
+using DyadLinearMPC
 
 # Create and setup MPC
 mpc = MPC(A, B; Np=10)

@@ -64,7 +64,7 @@ MPC controller settings.
 - `disturbance_preview::Bool = false`: Enable time-varying disturbance preview
 - `parameter_preview::Bool = false`: Enable time-varying generalized-parameter preview
 - `soft_weight::Float64 = 1e6`: Penalty weight for soft constraint violations
-- `bnb_warm_start::Bool = false`: Warm start the branch and bound of problems with binary controls from the solution of the previous call (see [`solve`](@ref LinearMPC.solve))
+- `bnb_warm_start::Bool = false`: Warm start the branch and bound of problems with binary controls from the solution of the previous call (see [`solve`](@ref DyadLinearMPC.solve))
 - `deferred_tol::Float64 = 0.0`: Largest increase of the objective over that of the relaxed search for which the resolved deferred binary controls are accepted without the full branch and bound (see [`defer_binary_controls!`](@ref))
 - `deferred_max_combinations::Int = 64`: Largest number of combinations of the candidates of the groups of deferred binary controls that are evaluated (see [`defer_binary_controls!`](@ref))
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
@@ -197,7 +197,7 @@ mutable struct MPC
     mpQP::MPQP
 
     # DAQP optimization model
-    opt_model::DAQPBase.Model
+    opt_model::DyadDAQP.Model
 
     # Prestabilizing feedback
     K::Matrix{Float64}

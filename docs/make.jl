@@ -1,5 +1,5 @@
 push!(LOAD_PATH,"../src/")
-using LinearMPC
+using DyadLinearMPC
 using Documenter
 
 # ============================================================
@@ -146,8 +146,8 @@ end
 
 try
 
-makedocs(sitename = "LinearMPC.jl",
-         modules  = [LinearMPC],
+makedocs(sitename = "DyadLinearMPC.jl",
+         modules  = [DyadLinearMPC],
          format   = Documenter.HTML(assets = ["assets/lang-switcher.css", "assets/lang-switcher.js"]),
          pages=["Home" => "index.md"
                 "Manual" => ["Getting started" => ["Simple example" => "manual/simple.md",

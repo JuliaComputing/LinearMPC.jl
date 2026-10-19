@@ -13,7 +13,7 @@ In _explicit MPC_ these feedbacks and regions are stored to be used online to fi
 
 If step 1 is done correctly, this can save a lot of computations, since an optimization solver does not have to be embedded. A drawback is, however, that the number of regions grows rapidly as the problem dimension increase, resulting in a significant memory footprint (since all feedbacks + regions needs to be stored in memory.)
 
-Computing the explicit solution can be quite challenging in its own right. **LinearMPC.jl** make use of the state-of-the-art multi-parametric programming solver [ParametricDAQP.jl](https://github.com/darnstrom/ParametricDAQP.jl/)[^Arnstrom24]
+Computing the explicit solution can be quite challenging in its own right. **DyadLinearMPC.jl** make use of the state-of-the-art multi-parametric programming solver [ParametricDAQP.jl](https://github.com/darnstrom/ParametricDAQP.jl/)[^Arnstrom24]
 
 [^Arnstrom24]: Arnström, Daniel, and Axehill, Daniel "A High-Performant Multi-Parametric Quadratic Programming Solver," 2024 _IEEE 63rd Conference on Decision and Control (CDC)_, Milan, Italy, 2024, pp. 303-308
 
@@ -21,7 +21,7 @@ For a given MPC controller `mpc`, an explicit MPC controller can be created with
 
 ```@tab
 # julia
-empc = LinearMPC.ExplicitMPC(mpc)
+empc = DyadLinearMPC.ExplicitMPC(mpc)
 # python
 from lmpc import ExplicitMPC
 empc = ExplicitMPC(mpc)
@@ -33,7 +33,7 @@ Running the code above gives the warning "No paramter range defined". This is be
 
 ```@tab
 # julia
-parameter_range = LinearMPC.ParameterRange(mpc)
+parameter_range = DyadLinearMPC.ParameterRange(mpc)
 parameter_range.xmin[:] .= -1
 parameter_range.xmax[:] .=  1
 # python
@@ -44,11 +44,11 @@ will consider states in the unit box. Similarly, one can modify the range for
 * **references** by modifying the field `rmin` and `rmax`
 * **disturbances** by modifying the field `dmin` and `dmax`
 ## Computing control
-To efficiently compute a control action using explicit MPC controller, **LinearMPC.jl** constructs a  _binary search tree_[^Tondel03]. This can be done with
+To efficiently compute a control action using explicit MPC controller, **DyadLinearMPC.jl** constructs a  _binary search tree_[^Tondel03]. This can be done with
 
 ```@tab
 # julia
-LinearMPC.build_tree!(empc)
+DyadLinearMPC.build_tree!(empc)
 # python
 empc.build_tree()
 ```
@@ -59,7 +59,7 @@ A binary search tree will also be compuetd by passing the optional argument `bui
 
 ```@tab
 # julia
-empc = LinearMPC.ExplicitMPC(mpc;build_tree=true)
+empc = DyadLinearMPC.ExplicitMPC(mpc;build_tree=true)
 # python
 empc = ExplicitMPC(mpc, build_tree=True)
 ```
@@ -68,7 +68,7 @@ When a binary search tree has been formed , a control can be computed, similar a
 
 ```@tab
 # julia
-u = LinearMPC.compute_control(empc,x;r=r)
+u = DyadLinearMPC.compute_control(empc,x;r=r)
 # python
 u = empc.compute_control(x, r=r)
 ```
@@ -78,7 +78,7 @@ C code for an explicit MPC controller can be generate with `codegen`. The call
 
 ```@tab
 # julia
-LinearMPC.codegen(empc;dir="code_dir")
+DyadLinearMPC.codegen(empc;dir="code_dir")
 # python
 empc.codegen(dir="code_dir")
 ```
@@ -93,8 +93,8 @@ To show some of the functionality, we consider he explicit MPC controller for co
 This is an example that is available in `mpc_examples`, so a template for the MPC controller can be created with
 
 ```@example explicit_mpc 
-using LinearMPC
-mpc,para_range= LinearMPC.mpc_examples("dcmotor")
+using DyadLinearMPC
+mpc,para_range= DyadLinearMPC.mpc_examples("dcmotor")
 nothing #hide
 ```
 Note that `mpc_examples` also provide a template for the parameter range. We do, however, want to ensure that the exlicit MPC controller is computed for $|x_1| \leq 0.3$  and $|x_2| \leq 2$, which we can ensure with
@@ -107,7 +107,7 @@ nothing #hide
 Next, we compute an explicit controller with 
 
 ```@example explicit_mpc
-empc = LinearMPC.ExplicitMPC(mpc;range=para_range)
+empc = DyadLinearMPC.ExplicitMPC(mpc;range=para_range)
 nothing #hide
 ```
 

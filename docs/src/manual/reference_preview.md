@@ -54,13 +54,13 @@ u = mpc.compute_control(x, r=[1.0, 0.0])
 
 ```@tabsetup reference_preview
 # julia
-using LinearMPC
+using DyadLinearMPC
 
 # Create MPC with reference preview
 A = [1 1; 0 1]
 B = [0; 1]
 C = [1.0 0; 0 1.0]
-mpc = LinearMPC.MPC(A, B; C, Np=10, Nc=5)
+mpc = DyadLinearMPC.MPC(A, B; C, Np=10, Nc=5)
 set_objective!(mpc; Q=[1.0, 1.0], R=[0.1])
 
 # Enable reference preview

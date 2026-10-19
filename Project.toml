@@ -1,12 +1,12 @@
-name = "LinearMPC"
-uuid = "82e1c212-e1a2-49d2-b26a-a31d6968e3bd"
+name = "DyadLinearMPC"
+uuid = "18eabb53-b75b-4dba-9989-990addd208d0"
 version = "0.11.0"
-authors = ["Daniel Arnström <daniel.arnstrom@gmail.com>"]
+authors = ["Daniel Arnström <daniel.arnstrom@gmail.com>", "JuliaHub, Inc."]
 
 [deps]
 ASCertain = "3c289fd8-0ede-4eb4-bc21-a9cdb942ddf8"
 ControlSystemsBase = "aaaaaaaa-a6ca-5380-bf3e-84a91bcd477e"
-DAQPBase = "833476c3-a8c0-4073-9b64-6473509843fe"
+DyadDAQP = "e0fdcf0a-dbeb-4d6e-936d-2f80da65ad3e"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -27,7 +27,7 @@ ControlSystemsExt = "ControlSystemsBase"
 [compat]
 ASCertain = "~0.4.2"
 ControlSystemsBase = "1.10"
-DAQPBase = "~0.6.0"
+DyadDAQP = "0.6"
 ForwardDiff = "1, 0.10"
 Latexify = "0.16"
 MatrixEquations = "2.4.5"

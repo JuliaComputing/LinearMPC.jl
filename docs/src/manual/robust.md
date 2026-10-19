@@ -1,6 +1,6 @@
 # [Robust MPC](@id man_robust)
 
-**LinearMPC.jl** can handle uncertaintiy in the system dynamics and in the current state. 
+**DyadLinearMPC.jl** can handle uncertaintiy in the system dynamics and in the current state. 
 
 ## Uncertainty in the dynamics
 Model predictive control requires a model of the system dynamics. In practice, there is often a mismatch between this model and the true dynamics. This mismatch can be captured with an additive disturbance $w_k$ in the dynamics
@@ -11,12 +11,12 @@ If the mismatch is no accounted for, constraints that are predicted to be satisf
 
 ```@tabexample robust_mpc
 # julia
-using LinearMPC, Plots
+using DyadLinearMPC, Plots
 
 F, G = [1 0.1; 0 1], [0.005; 0.1;;]  # double integrator with Ts=0.1
 true_dynamics = (x, u, d) -> F*x + G*u + 0.01*(rand(2) .- 0.5)
 
-mpc_nominal = LinearMPC.MPC(F, G; Ts=0.1, Np=25, C=[1 0;])
+mpc_nominal = DyadLinearMPC.MPC(F, G; Ts=0.1, Np=25, C=[1 0;])
 set_bounds!(mpc_nominal; umin=[-0.2], umax=[0.2], ymin=[-0.5], ymax=[0.5])
 
 sim_nominal = Simulation(true_dynamics, mpc_nominal; r=[0.5])
@@ -52,7 +52,7 @@ To account for model mismatch, the function `set_disturbance!(mpc,wmin,wmax)` de
 
 ```@tabexample robust_mpc
 # julia
-mpc_robust = LinearMPC.MPC(F, G; Ts=0.1, Np=25, C=[1 0;])
+mpc_robust = DyadLinearMPC.MPC(F, G; Ts=0.1, Np=25, C=[1 0;])
 set_prestabilizing_feedback!(mpc_robust)
 set_disturbance!(mpc_robust, [-0.005; -0.005], [0.005; 0.005])
 set_bounds!(mpc_robust; umin=[-0.2], umax=[0.2], ymin=[-0.5], ymax=[0.5])

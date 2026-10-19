@@ -1,4 +1,11 @@
 # **LinearMPC.jl**
+
+> This is the branch `dyad` of [JuliaComputing/LinearMPC.jl](https://github.com/JuliaComputing/LinearMPC.jl),
+> registered in DyadRegistry as the package **DyadLinearMPC** (module `DyadLinearMPC`). It is
+> [LinearMPC.jl](https://github.com/darnstrom/LinearMPC.jl) with changes that are not yet part of a
+> release (the branch `integration`), using the QP solver DyadDAQP instead of DAQPBase. The API is that
+> of LinearMPC.jl, with `LinearMPC` replaced by `DyadLinearMPC`.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![](https://img.shields.io/badge/docs-online-brightgreen)](https://darnstrom.github.io/LinearMPC.jl)
 [![CI](https://github.com/darnstrom/LinearMPC.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/darnstrom/LinearMPC.jl/actions/workflows/ci.yml)

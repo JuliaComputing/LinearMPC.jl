@@ -1,11 +1,11 @@
-using LinearMPC
-example = LinearMPC.mpc_example("dcmotor")
+using DyadLinearMPC
+example = DyadLinearMPC.mpc_example("dcmotor")
 mpc,range = example.mpc, example.range
 # Adjust range 
 range.xmin[1:2] = -[0.3;2.0] 
 range.xmax[1:2] = [0.3;2.0]
 # Compute explicit controller over range
-empc = LinearMPC.ExplicitMPC(mpc;range)
+empc = DyadLinearMPC.ExplicitMPC(mpc;range)
 
 using Plots
 p1 = plot(empc;parameters=[:x1,:x2],r=[0.5,0.0],title="Critical regions");

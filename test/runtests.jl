@@ -1,4 +1,4 @@
-using LinearMPC
+using DyadLinearMPC
 using Test
 using LinearAlgebra
 using Statistics
@@ -7,14 +7,14 @@ using RecipesBase
 global templib
 Random.seed!(1234)
 
-@testset verbose = true "LinearMPC.jl" begin
+@testset verbose = true "DyadLinearMPC.jl" begin
     @testset "Basic setup" begin
         A = randn(3,3)
         B = randn(3)
         C = [1.0 0 0; 0 1.0 0]
         Bd = randn(3)
         Dd = [1.0 0; 0 1]
-        mpc = LinearMPC.MPC(A,B,0.1;C,Bd,Dd, Np = 10, Nc = 5)
+        mpc = DyadLinearMPC.MPC(A,B,0.1;C,Bd,Dd, Np = 10, Nc = 5)
         set_weights!(mpc,Q=[1.0;3.0], R = 2, Rr = [1.0;;])
         set_bounds!(mpc,umin = -[0.5], umax = [0.5])
         set_prestabilizing_feedback!(mpc)
@@ -30,13 +30,13 @@ Random.seed!(1234)
         F = [0.9 0.1; 0.0 0.8]; G = [0.0 1.0; 1.0 0.0]; f = [0.3, -0.2]
         Np = 6
         function build(offset_as_disturbance, preview)
-            model = offset_as_disturbance ? LinearMPC.Model(F, G; Gd = reshape(f, 2, 1), C = [1.0 0.0]) :
-                                            LinearMPC.Model(F, G; f_offset = f, C = [1.0 0.0])
-            mpc = LinearMPC.MPC(model; Np, Nc = Np)
-            LinearMPC.settings!(mpc; parameter_preview = preview)
-            LinearMPC.set_objective!(mpc; Q = [1.0], R = [0.1, 0.1], Eu = [0.5 0.0 -0.2; 0.0 0.3 0.1])
-            LinearMPC.set_input_bounds!(mpc; umin = [-50.0, -50.0], umax = [50.0, 50.0])
-            LinearMPC.add_constraint!(mpc; Au = [1.0 1.0], Ap = [0.0 -1.0 0.5], lb = [0.0], ub = [Inf], ks = 1:Np)
+            model = offset_as_disturbance ? DyadLinearMPC.Model(F, G; Gd = reshape(f, 2, 1), C = [1.0 0.0]) :
+                                            DyadLinearMPC.Model(F, G; f_offset = f, C = [1.0 0.0])
+            mpc = DyadLinearMPC.MPC(model; Np, Nc = Np)
+            DyadLinearMPC.settings!(mpc; parameter_preview = preview)
+            DyadLinearMPC.set_objective!(mpc; Q = [1.0], R = [0.1, 0.1], Eu = [0.5 0.0 -0.2; 0.0 0.3 0.1])
+            DyadLinearMPC.set_input_bounds!(mpc; umin = [-50.0, -50.0], umax = [50.0, 50.0])
+            DyadLinearMPC.add_constraint!(mpc; Au = [1.0 1.0], Ap = [0.0 -1.0 0.5], lb = [0.0], ub = [Inf], ks = 1:Np)
             mpc
         end
         for preview in (false, true)
@@ -44,72 +44,72 @@ Random.seed!(1234)
             for _ in 1:5
                 x = randn(2)
                 p = preview ? randn(3, Np) : randn(3)
-                u_offset = LinearMPC.compute_control(m_offset, x; r = [1.0], p)
-                u_dist = LinearMPC.compute_control(m_dist, x; r = [1.0], d = [1.0], p)
+                u_offset = DyadLinearMPC.compute_control(m_offset, x; r = [1.0], p)
+                u_dist = DyadLinearMPC.compute_control(m_dist, x; r = [1.0], d = [1.0], p)
                 @test u_offset ≈ u_dist atol = 1e-6
             end
         end
     end
     @testset "MPC examples " begin
-        mpc,range = LinearMPC.mpc_examples("invpend");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("dcmotor");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("aircraft");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("nonlin");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("mass", 10,10,params=Dict(:nx=>2));
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("chained",10,10,params=Dict(:nx=>2));
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("invpend_contact",6,6, params=Dict(:nwalls=>1));
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("pwa_rotation");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("hybrid_spring");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("satellite");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("ballplate");
-        LinearMPC.mpc2mpqp(mpc)
-        mpc,range = LinearMPC.mpc_examples("rocket");
-        LinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("invpend");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("dcmotor");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("aircraft");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("nonlin");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("mass", 10,10,params=Dict(:nx=>2));
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("chained",10,10,params=Dict(:nx=>2));
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("invpend_contact",6,6, params=Dict(:nwalls=>1));
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("pwa_rotation");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("hybrid_spring");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("satellite");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("ballplate");
+        DyadLinearMPC.mpc2mpqp(mpc)
+        mpc,range = DyadLinearMPC.mpc_examples("rocket");
+        DyadLinearMPC.mpc2mpqp(mpc)
     end
 
     @testset "MPCExample API" begin
-        example = LinearMPC.mpc_example("dc_motor")
-        @test example isa LinearMPC.MPCExample
+        example = DyadLinearMPC.mpc_example("dc_motor")
+        @test example isa DyadLinearMPC.MPCExample
         @test example.name == "DC Motor Position Control"
         @test !isempty(example.scenarios)
-        @test "dcmotor" in LinearMPC.mpc_example_names()
+        @test "dcmotor" in DyadLinearMPC.mpc_example_names()
 
-        sim = LinearMPC.Simulation(example, 1)
+        sim = DyadLinearMPC.Simulation(example, 1)
         @test !isempty(sim.ts)
 
-        example = LinearMPC.mpc_example("mass-spring", 10, 10; nx = 2)
+        example = DyadLinearMPC.mpc_example("mass-spring", 10, 10; nx = 2)
         @test example.mpc.model.nx == 2
 
         # Test other SImulation calls 
-        sim = LinearMPC.Simulation(example)
+        sim = DyadLinearMPC.Simulation(example)
         empty!(example.scenarios)
-        sim = LinearMPC.Simulation(example)
+        sim = DyadLinearMPC.Simulation(example)
     end
  
     @testset "Compute control" begin
-        mpc,range = LinearMPC.mpc_examples("invpend")
-        control = LinearMPC.compute_control(mpc,[5.0;5;0;0])
+        mpc,range = DyadLinearMPC.mpc_examples("invpend")
+        control = DyadLinearMPC.compute_control(mpc,[5.0;5;0;0])
         @test norm(control.-1.7612519326) < 1e-6
     end
 
     @testset "Binary horizon per control" begin
         # Two controls with the same effect, whose continuous optimum is fractional in every step
         function trajectory(Nc_binary)
-            mpc = LinearMPC.MPC(LinearMPC.Model(fill(0.5, 1, 1), [1.0 1.0]; C = [1.0;;]); Np = 5, Nc = 5)
+            mpc = DyadLinearMPC.MPC(DyadLinearMPC.Model(fill(0.5, 1, 1), [1.0 1.0]; C = [1.0;;]); Np = 5, Nc = 5)
             set_objective!(mpc; Q = [1.0], R = [0.1, 0.2])
             set_input_bounds!(mpc; umin = [0.0, 0.0], umax = [1.0, 1.0])
             set_binary_controls!(mpc, [1, 2], Nc_binary)
-            reshape(LinearMPC.compute_control_trajectory(mpc, [0.0]; r = [0.7]), 2, :)
+            reshape(DyadLinearMPC.compute_control_trajectory(mpc, [0.0]; r = [0.7]), 2, :)
         end
         isbin(v) = min(abs(v), abs(v - 1)) < 1e-6
         U = trajectory([3, 1])
@@ -119,22 +119,22 @@ Random.seed!(1234)
         @test any(!isbin, U[2, 2:3])
         @test trajectory([3, 3]) ≈ trajectory(3)
         @test trajectory([-1, -1]) ≈ trajectory(-1)
-        mpc = LinearMPC.MPC(LinearMPC.Model(fill(0.5, 1, 1), [1.0 1.0]); Np = 5)
+        mpc = DyadLinearMPC.MPC(DyadLinearMPC.Model(fill(0.5, 1, 1), [1.0 1.0]); Np = 5)
         @test_throws ArgumentError set_binary_controls!(mpc, [1, 2], [3])
     end
     @testset "Binary regularization only over the binary horizon" begin
         # The control has no effect and a small cost, so its optimum is 0 wherever it is relaxed
-        mpc = LinearMPC.MPC(LinearMPC.Model(fill(0.5, 1, 1), [0.0;;]; C = [1.0;;]); Np = 6, Nc = 6)
+        mpc = DyadLinearMPC.MPC(DyadLinearMPC.Model(fill(0.5, 1, 1), [0.0;;]; C = [1.0;;]); Np = 6, Nc = 6)
         set_objective!(mpc; Q = [1.0], R = [0.01])
         set_input_bounds!(mpc; umin = [0.0], umax = [1.0])
         set_binary_controls!(mpc, [1], 2)
-        U = LinearMPC.compute_control_trajectory(mpc, [0.0]; r = [0.0])
+        U = DyadLinearMPC.compute_control_trajectory(mpc, [0.0]; r = [0.0])
         @test maximum(abs, U) < 1e-6
     end
     @testset "Equality constraints with and without binary controls" begin
         # u₂ continuous and the equality u₂ = 2u₁ at every step; with `binary`, u₁ ∈ {0, 1}
         function eqmpc(binary)
-            mpc = LinearMPC.MPC(LinearMPC.Model(fill(0.9, 1, 1), [0.0 1.0]; C = [1.0;;]); Np = 6, Nc = 6)
+            mpc = DyadLinearMPC.MPC(DyadLinearMPC.Model(fill(0.9, 1, 1), [0.0 1.0]; C = [1.0;;]); Np = 6, Nc = 6)
             set_objective!(mpc; Q = [1.0], R = [0.01, 0.01])
             set_input_bounds!(mpc; umin = [0.0, 0.0], umax = [1.0, 5.0])
             add_constraint!(mpc; Au = [-2.0 1.0], lb = [0.0], ub = [0.0], ks = 1:6)
@@ -143,7 +143,7 @@ Random.seed!(1234)
         end
         mpc = eqmpc(true)
         for x0 in ([0.0], [0.5], [-1.0]) # repeated solves reuse the workspace
-            U = reshape(LinearMPC.compute_control_trajectory(mpc, x0; r = [1.5]), 2, :)
+            U = reshape(DyadLinearMPC.compute_control_trajectory(mpc, x0; r = [1.5]), 2, :)
             @test maximum(abs.(U[2, :] .- 2 .* U[1, :])) < 1e-8
             @test all(v -> min(abs(v), abs(v - 1)) < 1e-8, U[1, 1:3])
         end
@@ -152,7 +152,7 @@ Random.seed!(1234)
             for binary in (true, false)
                 mpc = eqmpc(binary)
                 srcdir = tempname()
-                LinearMPC.codegen(mpc; dir = srcdir)
+                DyadLinearMPC.codegen(mpc; dir = srcdir)
                 src = [f for f in readdir(srcdir) if last(f, 1) == "c"]
                 lib = "mpceqtest." * Libdl.dlext
                 run(Cmd(`gcc -lm -fPIC -O3 -msse3 -xc -shared -o $lib $src`; dir = srcdir))
@@ -163,14 +163,14 @@ Random.seed!(1234)
                     ccall(compute_control, Cint, (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}),
                         u, x0, [1.5], zeros(0))
                     @test abs(u[2] - 2u[1]) < 1e-8
-                    @test u ≈ LinearMPC.compute_control(mpc, x0; r = [1.5]) atol = 1e-6
+                    @test u ≈ DyadLinearMPC.compute_control(mpc, x0; r = [1.5]) atol = 1e-6
                 end
                 Libdl.dlclose(handle)
             end
         end
     end
     @testset "Indicator + Product constraints" begin
-        mpc = LinearMPC.MPC([-0.8;;], [1.0 0.0 1.6]; C=[1.0;;], Np=1, Nc=1)
+        mpc = DyadLinearMPC.MPC([-0.8;;], [1.0 0.0 1.6]; C=[1.0;;], Np=1, Nc=1)
         set_input_bounds!(mpc; umin=[-1.0, 0.0, -10.0], umax=[1.0, 1.0, 10.0])
         set_binary_controls!(mpc, [2])
         set_objective!(mpc; Q=[0.0], Qf=[0.0], R=[1e-6, 1e-6, 1e-6], eu=[0.0, 0.0, -1.0])
@@ -183,7 +183,7 @@ Random.seed!(1234)
         u_neg = compute_control(mpc, x_neg)
         xplus_pos = mpc.model.F * x_pos + mpc.model.G * u_pos
         xplus_neg = mpc.model.F * x_neg + mpc.model.G * u_neg
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
 
         @test length(u_pos) == 3
         @test mpqp.has_binaries
@@ -197,7 +197,7 @@ Random.seed!(1234)
         alpha = pi / 3
         c, s = cos(alpha), sin(alpha)
         function build_rotation_helper(target)
-            mpc = LinearMPC.MPC(zeros(2, 2), [0.0 1.0 0.0; 0.0 0.0 1.0];
+            mpc = DyadLinearMPC.MPC(zeros(2, 2), [0.0 1.0 0.0; 0.0 0.0 1.0];
                                 C=Matrix{Float64}(I, 2, 2), Np=1, Nc=1)
             set_input_bounds!(mpc; umin=[0.0, -6.0, -6.0], umax=[1.0, 6.0, 6.0])
             set_binary_controls!(mpc, [1])
@@ -244,13 +244,13 @@ Random.seed!(1234)
     end
 
     @testset "Closed-loop MLD examples" begin
-        rotation = LinearMPC.mpc_example("pwa_rotation")
-        sim_rotation = LinearMPC.Simulation(rotation)
+        rotation = DyadLinearMPC.mpc_example("pwa_rotation")
+        sim_rotation = DyadLinearMPC.Simulation(rotation)
         @test norm(sim_rotation.xs[:, end]) < 1e-2
         @test sim_rotation.us[1, 1] ≈ -1.0 atol=1e-8
 
-        spring = LinearMPC.mpc_example("hybrid_spring")
-        sim_spring = LinearMPC.Simulation(spring)
+        spring = DyadLinearMPC.mpc_example("hybrid_spring")
+        sim_spring = DyadLinearMPC.Simulation(spring)
 
         @test norm(sim_spring.xs[:, end]) < 5e-2
         # TODO: add these after fix in DAQPBase
@@ -264,9 +264,9 @@ Random.seed!(1234)
 
 
     @testset "Codegen IMPC" begin
-        mpc,range = LinearMPC.mpc_examples("invpend")
+        mpc,range = DyadLinearMPC.mpc_examples("invpend")
         srcdir = tempname()
-        LinearMPC.codegen(mpc;dir=srcdir)
+        DyadLinearMPC.codegen(mpc;dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
         if(!isnothing(Sys.which("gcc")))
@@ -329,15 +329,15 @@ Random.seed!(1234)
 
         # Input bounds tight enough that a large part of the horizon saturates,
         # so that the active set is non-trivial and warm starting can pay off.
-        mpc, _ = LinearMPC.mpc_examples("mass", 20, 20; params=Dict(:nx => 4))
+        mpc, _ = DyadLinearMPC.mpc_examples("mass", 20, 20; params=Dict(:nx => 4))
         set_bounds!(mpc; umin = [-0.1], umax = [0.1])
         x0, nsteps = [3.0; 3.0; 0.0; 0.0], 60
 
         # Regression: warm_start=true used to emit "#define DAQP_WARMSTART %d"
         # without an argument, so codegen threw before writing anything.
         colddir, warmdir = tempname(), tempname()
-        LinearMPC.codegen(mpc; dir=colddir, warm_start=false)
-        LinearMPC.codegen(mpc; dir=warmdir, warm_start=true)
+        DyadLinearMPC.codegen(mpc; dir=colddir, warm_start=false)
+        DyadLinearMPC.codegen(mpc; dir=warmdir, warm_start=true)
 
         @test !occursin("#define DAQP_WARMSTART",
                         read(joinpath(colddir, "mpc_workspace.h"), String))
@@ -375,8 +375,8 @@ Random.seed!(1234)
         # with and without a binary control.
         function diag_mpc(F, binary)
             nx = binary ? 2 : 1 # binary: x₁⁺ = Fx₁ + b with b ∈ {0, 1}, x₂⁺ = Fx₂ + s
-            model = LinearMPC.Model(F*Matrix(1.0I,nx,nx), Matrix(1.0I,nx,nx); C = Matrix(1.0I,nx,nx))
-            mpc = LinearMPC.MPC(model; Np = 3, Nc = 3)
+            model = DyadLinearMPC.Model(F*Matrix(1.0I,nx,nx), Matrix(1.0I,nx,nx); C = Matrix(1.0I,nx,nx))
+            mpc = DyadLinearMPC.MPC(model; Np = 3, Nc = 3)
             set_objective!(mpc; Q = fill(100.0,nx), R = fill(0.01,nx))
             if binary
                 set_input_bounds!(mpc; umin = [0.0, -0.5], umax = [1.0, 0.5])
@@ -394,8 +394,8 @@ Random.seed!(1234)
 
             mpc = diag_mpc(F, binary)
             srcdir = tempname()
-            LinearMPC.codegen(mpc; dir = srcdir)
-            @test LinearMPC.daqp_diagonal_factor(mpc.opt_model) == iszero(F)
+            DyadLinearMPC.codegen(mpc; dir = srcdir)
+            @test DyadLinearMPC.daqp_diagonal_factor(mpc.opt_model) == iszero(F)
             if(!isnothing(Sys.which("gcc")))
                 src = [f for f in readdir(srcdir) if last(f,1) == "c"]
                 testlib = "mpctest."* Base.Libc.Libdl.dlext
@@ -417,17 +417,17 @@ Random.seed!(1234)
 
     @testset "Prestabilizing feedback" begin
         A,B = [0 1; 10 0], [0;1]
-        mpc = LinearMPC.MPC(A,B,0.1;Np = 30)
+        mpc = DyadLinearMPC.MPC(A,B,0.1;Np = 30)
         set_bounds!(mpc;umin = -1, umax = 1);
         unom = compute_control(mpc,zeros(2);r = [1,0])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
 
         cond_nom = cond(mpqp.H)
 
         set_prestabilizing_feedback!(mpc)
 
         uprestab = compute_control(mpc,zeros(2);r = [1,0])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         cond_prestab = cond(mpqp.H)
 
         @test(norm(unom-uprestab) < 1e-10)
@@ -435,42 +435,42 @@ Random.seed!(1234)
     end
 
     @testset "Move blocking" begin 
-        using LinearMPC
+        using DyadLinearMPC
         Np = 10
-        mpc,_= LinearMPC.mpc_examples("aircraft",Np)
+        mpc,_= DyadLinearMPC.mpc_examples("aircraft",Np)
 
         move_block!(mpc,Int[]) # Set empty
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test length(mpqp.f) == Np*mpc.model.nu
 
         move_block!(mpc,[1,1,2,3,3])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test length(mpqp.f) == 5*mpc.model.nu
 
         # Pad
         move_block!(mpc,[1,1])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test mpc.move_blocks == [[1,9],[1,9]]
 
         # Clip
         move_block!(mpc,[2,3,3,6,8,9])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test mpc.move_blocks == [[2,3,3,2],[2,3,3,2]]
 
         move_block!(mpc,2)
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test mpc.move_blocks == [[2,2,2,2,2],[2,2,2,2,2]]
 
         move_block!(mpc,3)
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test mpc.move_blocks == [[3,3,3,1],[3,3,3,1]]
 
         move_block!(mpc,[[1,2,3],[4,2]])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test mpc.move_blocks == [[1,2,7],[4,6]]
 
         move_block!(mpc,[[1,2,3,15,20],[2]])
-        mpqp = LinearMPC.mpc2mpqp(mpc)
+        mpqp = DyadLinearMPC.mpc2mpqp(mpc)
         @test mpc.move_blocks == [[1,2,3,4],[10]]
     end
 
@@ -482,14 +482,14 @@ Random.seed!(1234)
         F = cat(F1, F2, dims=(1,2)); G = cat(G1, G2, dims=(1,2))
         x0 = [1.0, -0.5, 2.0]
         function single(F, G, x0, mb)
-            mpc = LinearMPC.MPC(F, G; Np=10)
+            mpc = DyadLinearMPC.MPC(F, G; Np=10)
             set_objective!(mpc; Q=fill(1.0, size(F,1)), R=[0.1])
             set_input_bounds!(mpc; umin=[-10.0], umax=[10.0])
             move_block!(mpc, mb)
             compute_control(mpc, x0; r=zeros(size(F,1)))
         end
         for blocks in ([[1,2,7],[4,6]], [[2,8],[1,1,1,7]], [[10],[3,7]])
-            mpc = LinearMPC.MPC(F, G; Np=10)
+            mpc = DyadLinearMPC.MPC(F, G; Np=10)
             set_objective!(mpc; Q=ones(3), R=[0.1, 0.1])
             set_input_bounds!(mpc; umin=[-10.0, -10.0], umax=[10.0, 10.0])
             move_block!(mpc, blocks)
@@ -497,19 +497,19 @@ Random.seed!(1234)
             @test u[1] ≈ single(F1, G1, x0[1:2], blocks[1])[1] atol=1e-8
             @test u[2] ≈ single(F2, G2, x0[3:3], blocks[2])[1] atol=1e-8
         end
-        mpc = LinearMPC.MPC(F, G; Np=10)
+        mpc = DyadLinearMPC.MPC(F, G; Np=10)
         @test_throws ArgumentError move_block!(mpc, [[1,2,7]])
     end
 
     @testset "Explicit MPC" begin
-        mpc,range = LinearMPC.mpc_examples("invpend")
-        empc = LinearMPC.ExplicitMPC(mpc;range)
-        LinearMPC.build_tree!(empc)
-        control = LinearMPC.compute_control(empc,[5.0;5;0;0])
+        mpc,range = DyadLinearMPC.mpc_examples("invpend")
+        empc = DyadLinearMPC.ExplicitMPC(mpc;range)
+        DyadLinearMPC.build_tree!(empc)
+        control = DyadLinearMPC.compute_control(empc,[5.0;5;0;0])
         @test norm(control.-1.7612519326) < 1e-6
         # Code generation
         srcdir = tempname()
-        LinearMPC.codegen(empc;dir=srcdir,float_type="double")
+        DyadLinearMPC.codegen(empc;dir=srcdir,float_type="double")
         src = [f for f in readdir(srcdir) if last(f,1) == "c" && f != "example.c"]
         @test !isempty(src)
         if(!isnothing(Sys.which("gcc")))
@@ -524,8 +524,8 @@ Random.seed!(1234)
 
     @testset "Certification" begin
         # Load inverted pendulum example and certify the iteration complexity 
-        mpc,range = LinearMPC.mpc_examples("invpend")
-        result = LinearMPC.certify(mpc;range)
+        mpc,range = DyadLinearMPC.mpc_examples("invpend")
+        result = DyadLinearMPC.certify(mpc;range)
         @test length(result.partition) > 100
     end
 
@@ -552,7 +552,7 @@ Random.seed!(1234)
         A = [0 1; 10 0] 
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B, 0.1; C, Np=5, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B, 0.1; C, Np=5, Nc=3)
         set_bounds!(mpc; umin=[-20.0], umax=[20.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1], Rr = [0.1])
         
@@ -576,7 +576,7 @@ Random.seed!(1234)
         @test length(control_preview) == 1
         
         # Test parameter dimensions
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test nx == 2  # State dimension
         @test nr == 2 * 5  # 2 outputs × 5 prediction horizon
         @test nd == 0  # No disturbance
@@ -604,7 +604,7 @@ Random.seed!(1234)
         # as the controller without preview, for a terminal state constraint and constraints with Ar
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
         function control(; preview, condensation=false)
-            mpc = LinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
+            mpc = DyadLinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
             mpc.settings.reference_preview = preview
             mpc.settings.reference_condensation = condensation
             set_objective!(mpc; Q=[1.0], R=[0.1])
@@ -624,7 +624,7 @@ Random.seed!(1234)
         A = [1 1; 0 1] 
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=3)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0], ymin=[-1.0;-0.5],  ymax=[1.0;0.5])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1])
         
@@ -638,14 +638,14 @@ Random.seed!(1234)
         mpc.settings.reference_preview = true
         setup!(mpc)
         
-        sim_preview = LinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
+        sim_preview = DyadLinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
         @test size(sim_preview.xs) == (2, N_sim)
         @test size(sim_preview.us) == (1, N_sim)
         @test size(sim_preview.rs) == (2, N_sim)
 
         # Compute explicit solution
-        empc = LinearMPC.ExplicitMPC(mpc;range=LinearMPC.ParameterRange(mpc),build_tree=true)
-        sim_explicit_preview = LinearMPC.Simulation(empc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
+        empc = DyadLinearMPC.ExplicitMPC(mpc;range=DyadLinearMPC.ParameterRange(mpc),build_tree=true)
+        sim_explicit_preview = DyadLinearMPC.Simulation(empc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
         @test size(sim_explicit_preview.xs) == (2, N_sim)
         @test size(sim_explicit_preview.us) == (1, N_sim)
         @test size(sim_explicit_preview.rs) == (2, N_sim)
@@ -654,7 +654,7 @@ Random.seed!(1234)
         mpc.settings.reference_preview = false
         setup!(mpc)
         
-        sim_no_preview = LinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
+        sim_no_preview = DyadLinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
         @test size(sim_no_preview.xs) == (2, N_sim)
         @test size(sim_no_preview.us) == (1, N_sim)
         
@@ -677,7 +677,7 @@ Random.seed!(1234)
         A = [0 1; 10 0] 
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B, 0.1; C, Np=5, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B, 0.1; C, Np=5, Nc=3)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1])
         mpc.settings.reference_preview = true
@@ -697,7 +697,7 @@ Random.seed!(1234)
         B = [0.0; 1.0]
         Gd = [0.0; 1.0]
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
         set_bounds!(mpc; umin=[-0.5], umax=[0.5])
         set_objective!(mpc; Q=[10.0], R=[0.1])
 
@@ -713,7 +713,7 @@ Random.seed!(1234)
         control_preview = compute_control(mpc, [0.0, 0.0]; d=d_traj)
         @test length(control_preview) == 1
 
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test nx == 2
         @test nr == 1
         @test nd == 5
@@ -722,7 +722,7 @@ Random.seed!(1234)
         @test control_preview[1] < control_single[1] - 1e-2
         @test norm(control_preview - control_single) > 1e-2
 
-        empc = LinearMPC.ExplicitMPC(mpc; range=LinearMPC.ParameterRange(mpc), build_tree=true)
+        empc = DyadLinearMPC.ExplicitMPC(mpc; range=DyadLinearMPC.ParameterRange(mpc), build_tree=true)
         control_explicit = compute_control(empc, [0.0, 0.0]; d=d_traj)
         @test control_explicit ≈ control_preview atol=1e-10
     end
@@ -738,7 +738,7 @@ Random.seed!(1234)
         # Qf = -I gives a zero terminal cost, since the non-positive diagonal entries are removed
         # by the positivity filter; the disturbance-preview coupling must use the filtered weights.
         for Qf in (1e-12*Matrix(I, 2, 2), -Matrix(1.0I, 2, 2))
-            mpc = LinearMPC.MPC(A, B; Gd, C=Matrix{Float64}(I, 2, 2), Np=7, Nc=7)
+            mpc = DyadLinearMPC.MPC(A, B; Gd, C=Matrix{Float64}(I, 2, 2), Np=7, Nc=7)
             set_objective!(mpc; Q=L'L, R=[1.0], S=Matrix(L'), Qf)
             mpc.settings.reference_tracking = false
             mpc.settings.disturbance_preview = true
@@ -756,7 +756,7 @@ Random.seed!(1234)
         B = [0.0; 1.0]
         Gd = [0.0; 1.0]
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
         set_bounds!(mpc; umin=[-0.5], umax=[0.5])
         set_objective!(mpc; Q=[10.0], R=[0.1])
 
@@ -765,13 +765,13 @@ Random.seed!(1234)
 
         mpc.settings.disturbance_preview = true
         setup!(mpc)
-        sim_preview = LinearMPC.Simulation(mpc; x0=[0.0, 0.0], N=N_sim, d=d_traj)
-        empc = LinearMPC.ExplicitMPC(mpc; range=LinearMPC.ParameterRange(mpc), build_tree=true)
-        sim_explicit_preview = LinearMPC.Simulation(empc; x0=[0.0, 0.0], N=N_sim, d=d_traj)
+        sim_preview = DyadLinearMPC.Simulation(mpc; x0=[0.0, 0.0], N=N_sim, d=d_traj)
+        empc = DyadLinearMPC.ExplicitMPC(mpc; range=DyadLinearMPC.ParameterRange(mpc), build_tree=true)
+        sim_explicit_preview = DyadLinearMPC.Simulation(empc; x0=[0.0, 0.0], N=N_sim, d=d_traj)
 
         mpc.settings.disturbance_preview = false
         setup!(mpc)
-        sim_no_preview = LinearMPC.Simulation(mpc; x0=[0.0, 0.0], N=N_sim, d=d_traj)
+        sim_no_preview = DyadLinearMPC.Simulation(mpc; x0=[0.0, 0.0], N=N_sim, d=d_traj)
 
         @test norm(sim_preview.us - sim_no_preview.us) > 1e-2
         @test norm(sim_preview.ys - sim_explicit_preview.ys) < 1e-6
@@ -779,7 +779,7 @@ Random.seed!(1234)
     end
 
     @testset "Disturbance Preview Error Handling" begin
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; Gd=[1.0;;], C=[1.0;;], Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; Gd=[1.0;;], C=[1.0;;], Np=4, Nc=4)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0], R=[0.1])
         mpc.settings.disturbance_preview = true
@@ -797,14 +797,14 @@ Random.seed!(1234)
         B = [1.0; 0.0]
         Gd = [1.0 0.0; 0.0 1.0]
         C = [1.0 0.0; 0.0 1.0]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=4, Nc=4)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1])
         mpc.settings.disturbance_preview = true
         setup!(mpc)
 
         # nd should be nd_base * Np = 2 * 4 = 8
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test nd == 2 * 4
 
         # Constant disturbance vector should be tiled into preview
@@ -826,14 +826,14 @@ Random.seed!(1234)
         B = [0.0; 1.0]
         Gd = [0.5; 0.0]
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[5.0], R=[0.1])
         mpc.settings.reference_preview = true
         mpc.settings.disturbance_preview = true
         setup!(mpc)
 
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test nx == 2
         @test nr == 1 * 5   # ny × Np
         @test nd == 1 * 5   # nd_base × Np
@@ -855,7 +855,7 @@ Random.seed!(1234)
         mpc.settings.reference_preview = true
         mpc.settings.disturbance_preview = true
         setup!(mpc)
-        empc = LinearMPC.ExplicitMPC(mpc; range=LinearMPC.ParameterRange(mpc), build_tree=true)
+        empc = DyadLinearMPC.ExplicitMPC(mpc; range=DyadLinearMPC.ParameterRange(mpc), build_tree=true)
         u_explicit = compute_control(empc, x; r=r_traj, d=d_traj)
         @test u_explicit ≈ u_both atol=1e-10
     end
@@ -866,7 +866,7 @@ Random.seed!(1234)
         Gd = [0.5; 0.0]
         C = [1.0 0.0]
         N_sim = 15
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[5.0], R=[0.1])
         mpc.settings.reference_preview = true
@@ -875,7 +875,7 @@ Random.seed!(1234)
 
         r_traj = [zeros(1, 5) ones(1, N_sim - 5)]
         d_traj = [zeros(1, 8) 0.3 * ones(1, N_sim - 8)]
-        sim = LinearMPC.Simulation(mpc; x0=[0.0, 0.0], N=N_sim, r=r_traj, d=d_traj)
+        sim = DyadLinearMPC.Simulation(mpc; x0=[0.0, 0.0], N=N_sim, r=r_traj, d=d_traj)
         @test size(sim.xs) == (2, N_sim)
         @test size(sim.us) == (1, N_sim)
     end
@@ -885,18 +885,18 @@ Random.seed!(1234)
         F, G = [1.0 1.0; 0.0 1.0], [0.0; 1.0]
         Gd = [1.0; 0.0]
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(F, G; Gd, C, Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC(F, G; Gd, C, Np=4, Nc=4)
         set_bounds!(mpc; umin=[-0.5], umax=[0.5])
         set_objective!(mpc; Q=[1.0], R=[0.1])
         mpc.settings.disturbance_preview = true
-        LinearMPC.set_state_observer!(mpc; Q=[1.0, 1.0], R=[0.1])
+        DyadLinearMPC.set_state_observer!(mpc; Q=[1.0, 1.0], R=[0.1])
         setup!(mpc)
 
-        @test_throws ArgumentError LinearMPC.codegen(mpc; dir=tempname())
+        @test_throws ArgumentError DyadLinearMPC.codegen(mpc; dir=tempname())
 
         # Explicit MPC codegen must also throw
-        empc = LinearMPC.ExplicitMPC(mpc; range=LinearMPC.ParameterRange(mpc), build_tree=false)
-        @test_throws ArgumentError LinearMPC.codegen(empc; dir=tempname())
+        empc = DyadLinearMPC.ExplicitMPC(mpc; range=DyadLinearMPC.ParameterRange(mpc), build_tree=false)
+        @test_throws ArgumentError DyadLinearMPC.codegen(empc; dir=tempname())
     end
 
     @testset "Disturbance Preview get_parameter_names" begin
@@ -904,13 +904,13 @@ Random.seed!(1234)
         B = [0.0; 1.0]
         Gd = [0.5; 0.0]
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=3, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=3, Nc=3)
         set_labels!(mpc; x=[:x1, :x2], u=[:u1], y=[:y1], d=[:d1])
         set_objective!(mpc; Q=[1.0], R=[0.1])
         mpc.settings.disturbance_preview = true
         setup!(mpc)
 
-        names = LinearMPC.get_parameter_names(mpc)
+        names = DyadLinearMPC.get_parameter_names(mpc)
         # Expected: x1, x2, y1r, d1_0, d1_1, d1_2
         @test :x1 ∈ names && :x2 ∈ names
         @test :y1r ∈ names
@@ -918,19 +918,19 @@ Random.seed!(1234)
         @test length(names) == 2 + 1 + 3  # nx + nr + nd_base*Np
 
         # label2id should find disturbance-preview parameter by time-step label
-        id, label_str = LinearMPC.label2id(mpc, :d1_1)
+        id, label_str = DyadLinearMPC.label2id(mpc, :d1_1)
         @test !isnothing(id)
     end
 
     @testset "Disturbance Preview format_disturbance nd=0" begin
         # When the model has no disturbances, format_disturbance returns empty regardless
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=4, Nc=4)
         set_objective!(mpc; Q=[1.0], R=[0.1])
         mpc.settings.disturbance_preview = true
         setup!(mpc)
 
-        @test isempty(LinearMPC.format_disturbance(mpc, nothing))
-        @test isempty(LinearMPC.format_disturbance(mpc, zeros(0)))
+        @test isempty(DyadLinearMPC.format_disturbance(mpc, nothing))
+        @test isempty(DyadLinearMPC.format_disturbance(mpc, zeros(0)))
     end
 
     @testset "Observer + Disturbance Preview Matrix Input" begin
@@ -939,17 +939,17 @@ Random.seed!(1234)
         F, G = [1.0 1.0; 0.0 1.0], [0.0; 1.0]
         Gd = [1.0; 0.0]  # nd_measured = 1
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(F, G; Gd, C, Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC(F, G; Gd, C, Np=4, Nc=4)
         set_bounds!(mpc; umin=[-0.5], umax=[0.5])
         set_objective!(mpc; Q=[1.0], R=[0.1])
 
         # Attach offset-free observer: 1 measured + 1 estimated disturbance
-        LinearMPC.set_offset_free_observer!(mpc; method=:state_disturbance, Q=[1e-3, 1e-3], R=[1e-4])
+        DyadLinearMPC.set_offset_free_observer!(mpc; method=:state_disturbance, Q=[1e-3, 1e-3], R=[1e-4])
         mpc.settings.disturbance_preview = true
         setup!(mpc)
 
         @test mpc.model.nd == 2          # nd_measured + nd_offsetfree
-        @test mpc.state_observer isa LinearMPC.OffsetFreeObserver
+        @test mpc.state_observer isa DyadLinearMPC.OffsetFreeObserver
         @test mpc.state_observer.nd_measured == 1
         @test mpc.state_observer.nd_offsetfree == 1
 
@@ -975,21 +975,21 @@ Random.seed!(1234)
         Ac = diagm(1=>ones(2))
         Bc = [0.0; 0.0; 1.0]
         Cc = I(3)
-        mpc = LinearMPC.MPC(Ac, Bc, 1.0; C=Cc, Np=10, Nc=10)
+        mpc = DyadLinearMPC.MPC(Ac, Bc, 1.0; C=Cc, Np=10, Nc=10)
 
         set_objective!(mpc; Q=1e-9*[10000.0, 1, 1e-4], R=[1e-9], Qf=[1e6, 1e6, 1e6])
         set_input_bounds!(mpc; umin=[-1], umax=[1])
         add_constraint!(mpc;Ax=[0.0 1.0 0.0],lb=[-1], ub=[1],soft=true)
         add_constraint!(mpc;Ax=[0.0 0.0 1.0],lb=[-1], ub=[1],soft=false)
 
-        LinearMPC.set_prestabilizing_feedback!(mpc)
+        DyadLinearMPC.set_prestabilizing_feedback!(mpc)
         mpc.settings.reference_preview = true
         setup!(mpc)
 
         rs = zeros(3,100)
         rs[1,1:50] .= 1.0
         rs[1,51:end] .= 0.5
-        sim = LinearMPC.Simulation(mpc; x0=zeros(3),r=rs, N=100)
+        sim = DyadLinearMPC.Simulation(mpc; x0=zeros(3),r=rs, N=100)
         @test sim.ys[1,30] ≈ 1.0 atol=1e-5
         @test sim.ys[1,end] ≈ 0.5 atol=1e-5
     end
@@ -999,7 +999,7 @@ Random.seed!(1234)
         A = [1 1; 0 1] 
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=5)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1])
         
@@ -1016,7 +1016,7 @@ Random.seed!(1234)
         
         # Generate C code
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
         
@@ -1041,7 +1041,7 @@ Random.seed!(1234)
         A = [1 1; 0 1] 
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=5)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1])
         
@@ -1059,7 +1059,7 @@ Random.seed!(1234)
         
         # Generate C code
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
         
@@ -1077,12 +1077,12 @@ Random.seed!(1234)
         end
 
         # Explicit
-        empc = LinearMPC.ExplicitMPC(mpc;range=LinearMPC.ParameterRange(mpc),build_tree=true)
+        empc = DyadLinearMPC.ExplicitMPC(mpc;range=DyadLinearMPC.ParameterRange(mpc),build_tree=true)
         @test norm(u_julia-compute_control(empc, x; r=r_traj))<1e-10
 
         # Generate code
         srcdir = tempname()
-        LinearMPC.codegen(empc; dir=srcdir)
+        DyadLinearMPC.codegen(empc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
         if(!isnothing(Sys.which("gcc")))
@@ -1094,7 +1094,7 @@ Random.seed!(1234)
             global templib = joinpath(srcdir, testlib)
             theta  = zeros(5)
             ccall(("mpc_update_parameter", templib), Cint, (Ptr{Cdouble},Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), theta, u, x, r_traj, d)
-            @test norm([x;LinearMPC.condense_reference(mpc,vec(r_traj));u] - theta) < 1e-10
+            @test norm([x;DyadLinearMPC.condense_reference(mpc,vec(r_traj));u] - theta) < 1e-10
             
             ccall(("mpc_compute_control", templib), Cint, (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), u, x, r_traj, d)
                       
@@ -1105,12 +1105,12 @@ Random.seed!(1234)
     @testset "Codegen Reference Condensation Repeated Calls" begin
         # The condensed reference must not depend on the previous calls of the generated function
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
-        mpc = LinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
+        mpc = DyadLinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
         set_input_bounds!(mpc; umin=[-5.0], umax=[5.0])
         mpc.settings.reference_preview = true
         mpc.settings.reference_condensation = true
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         if !isnothing(Sys.which("gcc"))
             src = [f for f in readdir(srcdir) if last(f,1) == "c"]
             testlib = "mpccondtest." * Base.Libc.Libdl.dlext
@@ -1131,7 +1131,7 @@ Random.seed!(1234)
         B = [0.0; 1.0]
         Gd = [0.0; 1.0]
         C = [1.0 0.0]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=4, Nc=4)
         set_bounds!(mpc; umin=[-0.5], umax=[0.5])
         set_objective!(mpc; Q=[10.0], R=[0.1])
         mpc.settings.disturbance_preview = true
@@ -1143,7 +1143,7 @@ Random.seed!(1234)
         u_julia = compute_control(mpc, x; r=r, d=d_traj)
 
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
 
@@ -1172,7 +1172,7 @@ Random.seed!(1234)
         B = [1.0;;]
         Gd = [2.0;;]
         C = [1.0;;]
-        mpc = LinearMPC.MPC(A, B; Gd, C, Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=4, Nc=4)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0], R=[0.1])
         setup!(mpc)
@@ -1182,7 +1182,7 @@ Random.seed!(1234)
         d_traj = [3.0 4.0 5.0 6.0]
 
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
 
@@ -1203,7 +1203,7 @@ Random.seed!(1234)
     @testset "Default time steps of general constraints" begin
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
         function control(; kw...)
-            mpc = LinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
+            mpc = DyadLinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
             set_objective!(mpc; Q=[1.0], R=[0.01])
             add_constraint!(mpc; kw...)
             compute_control(mpc, [3.0, 0.0]; r=[0.0]), mpc
@@ -1225,9 +1225,9 @@ Random.seed!(1234)
         # the LQR control for any horizon
         F, G, C = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;], [1.0 0.0]
         S = [0.05; 0.02;;]
-        _, _, K, _ = LinearMPC.ared(F, G, [0.1;;], C'*C, S)
+        _, _, K, _ = DyadLinearMPC.ared(F, G, [0.1;;], C'*C, S)
         for Qf in (zeros(0), [5.0])
-            mpc = LinearMPC.MPC(F, G; C, Np=3)
+            mpc = DyadLinearMPC.MPC(F, G; C, Np=3)
             mpc.settings.reference_tracking = false
             set_objective!(mpc; Q=[1.0], R=[0.1], S, Qf)
             set_terminal_cost!(mpc)
@@ -1238,23 +1238,23 @@ Random.seed!(1234)
 
     @testset "Evalute running cost" begin
         # Get inverted pendulum MPC
-        mpc,_= LinearMPC.mpc_examples("invpend")
+        mpc,_= DyadLinearMPC.mpc_examples("invpend")
         # Run simulation
         x0 = [0.0,0.0,0.0,0.0];
         rs = [zeros(2,20) repeat([10;0],1,780) repeat([9;0],1,10)];
         dynamics = (x,u,d) -> mpc.model.F*x + mpc.model.G*u
-        sim = LinearMPC.Simulation(dynamics, mpc; x0, N = 1000, r=rs)
-        @test LinearMPC.evaluate_cost(mpc,sim) > 0
+        sim = DyadLinearMPC.Simulation(dynamics, mpc; x0, N = 1000, r=rs)
+        @test DyadLinearMPC.evaluate_cost(mpc,sim) > 0
     end
 
     @testset "Hybrid MPC" begin
-        mpc,_ = LinearMPC.mpc_examples("satellite",20)
+        mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
         mpc.settings.reference_preview=true
         x0, N = zeros(3), 20;
         rs = [zeros(1,5) 0.5*ones(1,N-5);
               zeros(2,N)];
         dynamics = (x,u,d) -> mpc.model.F*x + mpc.model.G*u
-        sim = LinearMPC.Simulation(dynamics, mpc; x0,N, r=rs)
+        sim = DyadLinearMPC.Simulation(dynamics, mpc; x0,N, r=rs)
         @test mpc.mpQP.has_binaries # generated mpQP has binaries
         @test abs(sim.ys[1,end]-0.5) < 1e-3;  # convergence to reference
         # Ensure binary controls are either umin or umax
@@ -1265,7 +1265,7 @@ Random.seed!(1234)
 
         # Generate C code
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test "bnb.c" ∈ src
 
@@ -1289,14 +1289,14 @@ Random.seed!(1234)
 
     @testset "Warm start of the branch and bound" begin
         function satellite(warm; abs_subopt=0.0)
-            mpc,_ = LinearMPC.mpc_examples("satellite",20)
+            mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
             move_block!(mpc,[1,1,2,4,12])
             mpc.settings.bnb_warm_start = warm
             setup!(mpc)
-            LinearMPC.DAQP.settings(mpc.opt_model,Dict(:abs_subopt=>abs_subopt))
+            DyadLinearMPC.DAQP.settings(mpc.opt_model,Dict(:abs_subopt=>abs_subopt))
             return mpc
         end
-        θk(mpc,x,r) = LinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+        θk(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
         isbin(v) = min(abs(v),abs(abs(v)-1)) < 1e-6
 
         # Two binary controls in five move blocks; the binary decision variable of a block takes the
@@ -1312,8 +1312,8 @@ Random.seed!(1234)
             x,sources = zeros(3),Symbol[]
             for k in 1:30
                 θ = θk(mpc,x,[k <= 5 ? 0.0 : 0.5,0,0])
-                z,fval,flag,info = LinearMPC.solve(mpc,θ)
-                z_exact,fval_exact,flag_exact,info_exact = LinearMPC.solve(mpc_exact,θ)
+                z,fval,flag,info = DyadLinearMPC.solve(mpc,θ)
+                z_exact,fval_exact,flag_exact,info_exact = DyadLinearMPC.solve(mpc_exact,θ)
                 @test flag >= 1 && flag_exact >= 1
                 @test fval <= fval_exact + abs_subopt + 1e-6*(1+abs(fval_exact))
                 abs_subopt == 0 && @test fval ≈ fval_exact atol=1e-6*(1+abs(fval_exact))
@@ -1330,31 +1330,31 @@ Random.seed!(1234)
             end
             @test sources[1] == :search # no previous solution
             @test :candidate in sources
-            @test LinearMPC.DAQP.settings(mpc.opt_model).fval_bound ≥ 1e20 # cutoff restored
+            @test DyadLinearMPC.DAQP.settings(mpc.opt_model).fval_bound ≥ 1e20 # cutoff restored
         end
 
         # With a time limit that has passed, the candidate is returned
         mpc = satellite(true)
         x = zeros(3)
-        z,_,_,_ = LinearMPC.solve(mpc,θk(mpc,x,[0.5,0,0]))
-        LinearMPC.DAQP.settings(mpc.opt_model,Dict(:time_limit=>1e-9))
+        z,_,_,_ = DyadLinearMPC.solve(mpc,θk(mpc,x,[0.5,0,0]))
+        DyadLinearMPC.DAQP.settings(mpc.opt_model,Dict(:time_limit=>1e-9))
         x = mpc.model.F*x + mpc.model.G*z[1:3]
-        z,fval,flag,info = LinearMPC.solve(mpc,θk(mpc,x,[0.5,0,0]))
+        z,fval,flag,info = DyadLinearMPC.solve(mpc,θk(mpc,x,[0.5,0,0]))
         @test flag >= 1 && info.source == :candidate
         @test all(isbin, z[mpc.bnb.binary_ids])
-        @test LinearMPC.DAQP.settings(mpc.opt_model).time_limit == 1e-9 # time limit restored
+        @test DyadLinearMPC.DAQP.settings(mpc.opt_model).time_limit == 1e-9 # time limit restored
 
         # The stored solution is discarded by reset_bnb_warm_start! and setup!
         @test !isempty(mpc.bnb.xprev)
         reset_bnb_warm_start!(mpc)
         @test isempty(mpc.bnb.xprev)
-        LinearMPC.DAQP.settings(mpc.opt_model,Dict(:time_limit=>0.0))
-        LinearMPC.solve(mpc,θk(mpc,x,[0.5,0,0]))
+        DyadLinearMPC.DAQP.settings(mpc.opt_model,Dict(:time_limit=>0.0))
+        DyadLinearMPC.solve(mpc,θk(mpc,x,[0.5,0,0]))
         setup!(mpc)
         @test isempty(mpc.bnb.xprev)
 
         # Without binary controls, the setting has no effect
-        mpc,_ = LinearMPC.mpc_examples("invpend")
+        mpc,_ = DyadLinearMPC.mpc_examples("invpend")
         mpc.settings.bnb_warm_start = true
         setup!(mpc)
         @test isempty(mpc.bnb.binary_ids)
@@ -1365,15 +1365,15 @@ Random.seed!(1234)
         # (The MPC of the helper has its own name, since an assignment to mpc would assign the
         # variable mpc of the testset)
         function satellite(warm; abs_subopt=0.0, Nc_binary=-1)
-            sat,_ = LinearMPC.mpc_examples("satellite",20)
+            sat,_ = DyadLinearMPC.mpc_examples("satellite",20)
             set_binary_controls!(sat,[2,3],Nc_binary)
             move_block!(sat,[1,1,2,4,12])
             sat.settings.bnb_warm_start = warm
             setup!(sat)
-            LinearMPC.DAQP.settings(sat.opt_model,Dict(:abs_subopt=>abs_subopt))
+            DyadLinearMPC.DAQP.settings(sat.opt_model,Dict(:abs_subopt=>abs_subopt))
             return sat
         end
-        θk(mpc,x,r) = LinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+        θk(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
         isbin(v) = min(abs(v),abs(abs(v)-1)) < 1e-6
         files(dir) = Dict(f => read(joinpath(dir,f),String) for f in readdir(dir))
 
@@ -1385,7 +1385,7 @@ Random.seed!(1234)
         """
         function build_lib(mpc; kwargs...)
             srcdir = tempname()
-            LinearMPC.codegen(mpc; dir=srcdir, kwargs...)
+            DyadLinearMPC.codegen(mpc; dir=srcdir, kwargs...)
             open(joinpath(srcdir, "shim.c"), "w") do f; write(f, shim); end
             src = [f for f in readdir(srcdir) if last(f, 1) == "c"]
             testlib = "mpctest." * Base.Libc.Libdl.dlext
@@ -1402,33 +1402,33 @@ Random.seed!(1234)
         # The generated code follows the setting bnb_warm_start, unless the keyword overrides it
         mpc = satellite(true)
         on, off, plain = tempname(), tempname(), tempname()
-        LinearMPC.codegen(mpc; dir=on)
-        LinearMPC.codegen(mpc; dir=off, bnb_warm_start=false)
-        LinearMPC.codegen(satellite(false); dir=plain)
+        DyadLinearMPC.codegen(mpc; dir=on)
+        DyadLinearMPC.codegen(mpc; dir=off, bnb_warm_start=false)
+        DyadLinearMPC.codegen(satellite(false); dir=plain)
         @test occursin("#define DAQP_BNB_WARMSTART", read(joinpath(on,"mpc_workspace.h"),String))
         @test occursin("int exitflag = mpc_bnb_warm_start();", read(joinpath(on,"mpc_workspace.c"),String))
         # Without the warm start, the code is unchanged: the template of mpc_compute_control is
         # included as it is, and the setting has no effect
         @test !occursin("DAQP_BNB_WARMSTART", read(joinpath(off,"mpc_workspace.h"),String))
-        template = read(joinpath(pkgdir(LinearMPC),"codegen","mpc_update_qp.c"),String)
+        template = read(joinpath(pkgdir(DyadLinearMPC),"codegen","mpc_update_qp.c"),String)
         @test occursin(template, read(joinpath(off,"mpc_workspace.c"),String))
         @test files(off) == files(plain)
 
         # With a prestabilizing feedback, the control bounds are general constraints, and there is
         # no warm start
-        mpc_K = LinearMPC.MPC(LinearMPC.Model(fill(0.5, 1, 1), [1.0 1.0]; C = [1.0;;]); Np = 5, Nc = 5)
+        mpc_K = DyadLinearMPC.MPC(DyadLinearMPC.Model(fill(0.5, 1, 1), [1.0 1.0]; C = [1.0;;]); Np = 5, Nc = 5)
         set_objective!(mpc_K; Q = [1.0], R = [0.1, 0.2])
         set_input_bounds!(mpc_K; umin = [0.0, 0.0], umax = [1.0, 1.0])
         set_binary_controls!(mpc_K, [1, 2])
         set_prestabilizing_feedback!(mpc_K)
         mpc_K.settings.bnb_warm_start = true
         dir_K = tempname()
-        LinearMPC.codegen(mpc_K; dir=dir_K)
+        DyadLinearMPC.codegen(mpc_K; dir=dir_K)
         @test isempty(mpc_K.bnb.binary_ids)
         @test !occursin("DAQP_BNB_WARMSTART", read(joinpath(dir_K,"mpc_workspace.h"),String))
 
         if !isnothing(Sys.which("gcc"))
-            # Closed loop through the generated code, compared with LinearMPC.solve with the warm
+            # Closed loop through the generated code, compared with DyadLinearMPC.solve with the warm
             # start and with the exact solve. With a binary horizon of two steps, the binary
             # decision variables of the second step take the values of continuous ones.
             for (abs_subopt,Nc_binary) in ((0.0,-1),(5.0,-1),(0.0,2))
@@ -1441,7 +1441,7 @@ Random.seed!(1234)
                 @test unsafe_wrap(Array, Ptr{Cint}(sym(:bnb_shift_ids)), nb) == bnb.shift_ids .- 1
                 xprev_shift = unsafe_wrap(Array, Ptr{Cdouble}(sym(:bnb_xprev_shift)), nb)
                 fval_bound = ccall(sym(:mpctest_fval_bound), Cdouble, ())
-                R = LinearMPC.hessian_factor(mpc.mpQP)
+                R = DyadLinearMPC.hessian_factor(mpc.mpQP)
 
                 u,x,d,ldp = zeros(3),zeros(3),zeros(0),zeros(length(mpc.mpQP.f))
                 used = Int[]
@@ -1456,8 +1456,8 @@ Random.seed!(1234)
                     z_c = R.U\(ldp-v)
                     J = 0.5*dot(ldp,ldp)-0.5*dot(v,v)
 
-                    z,fval,_,_ = LinearMPC.solve(mpc_jl,θ)
-                    _,fval_exact,_,_ = LinearMPC.solve(mpc_exact,θ)
+                    z,fval,_,_ = DyadLinearMPC.solve(mpc_jl,θ)
+                    _,fval_exact,_,_ = DyadLinearMPC.solve(mpc_exact,θ)
                     tol = 1e-6*(1+abs(fval_exact))
                     @test flag == 1
                     @test u ≈ z_c[1:3] atol=1e-6
@@ -1483,7 +1483,7 @@ Random.seed!(1234)
                 @test cint(sym,:bnb_xprev_valid) == 1
                 ccall(sym(:mpctest_u), Cvoid, (Ptr{Cdouble},), ldp)
                 v = R.L\(mpc.mpQP.f + mpc.mpQP.f_theta*θ)
-                _,fval_exact,_,_ = LinearMPC.solve(mpc_exact,θ)
+                _,fval_exact,_,_ = DyadLinearMPC.solve(mpc_exact,θ)
                 @test 0.5*dot(ldp,ldp)-0.5*dot(v,v) <= fval_exact + abs_subopt + 1e-6*(1+abs(fval_exact))
             end
         end
@@ -1501,7 +1501,7 @@ Random.seed!(1234)
             G = [0.5 1 2 1.75 0; 0 0 0 0 0.6]
             second && (G = [G zeros(2,2); zeros(1,5) 0.4 0.8])
             nx,nu = size(G)
-            hm = LinearMPC.MPC(LinearMPC.Model(F,G; C=Matrix(1.0I,nx,nx)); Np)
+            hm = DyadLinearMPC.MPC(DyadLinearMPC.Model(F,G; C=Matrix(1.0I,nx,nx)); Np)
             set_objective!(hm; Q=[10.0,5.0,5.0][1:nx], R=fill(1e-3,nu), eu=[0,0,0,0.1,0.05,0,0][1:nu])
             set_input_bounds!(hm; umin=zeros(nu), umax=ones(nu))
             set_binary_controls!(hm,1:nu,[Nc_bits,Nc_bits,Nc_bits,Nc_on,Nc_pump,Nc_bits,Nc_bits][1:nu])
@@ -1515,10 +1515,10 @@ Random.seed!(1234)
             setup!(hm)
             return hm
         end
-        θk(mpc,x,r) = LinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+        θk(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
         isbin(v) = min(abs(v),abs(v-1)) < 1e-6
         bits = ([1,2,3],(weights=[1,2,4],))
-        DAQP = LinearMPC.DAQP
+        DAQP = DyadLinearMPC.DAQP
 
         # Setup of the groups: the binary decision variables of an integer encoding step by step, and
         # the logic constraints p_k ≤ δ_k of the pump, whose on/off control is not deferred
@@ -1553,7 +1553,7 @@ Random.seed!(1234)
         # Candidates of the groups for given relaxed values. Sum-up rounding of a = [0.3,0.4,0.6,0.2]
         # gives [0,1,0,1]; one step more on is the first step at which δ is on, one step fewer on the
         # last step that is on.
-        s = LinearMPC.BnBSolve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
+        s = DyadLinearMPC.BnBSolve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
         B = mpc.bnb.binary_ids
         l,u = s.bl[B],s.bu[B]
         δpos = [only(setdiff(only(filter(r -> p in r.pos, pump.rows)).pos,[p])) for p in pump.pos]
@@ -1562,18 +1562,18 @@ Random.seed!(1234)
         for (δ,more) in (([1,1,1,1],[1,1,0,1]),([0,1,1,1],[0,1,1,1]),([0,1,0,1],Int[]))
             vals = fill(false,length(B))
             vals[δpos] .= δ .== 1
-            cands = LinearMPC.bnb_group_candidates(pump,z,vals,s,l,u,64)
+            cands = DyadLinearMPC.bnb_group_candidates(pump,z,vals,s,l,u,64)
             @test cands == filter(!isempty,[[0,1,0,1],more,[0,1,0,0]])
         end
         # The encodable integers just below and above the relaxed values 2.5 (a tie, the lower one
         # first) and 6.9 at the two binary steps, combined over the steps
         z[enc.pos] = [0.5,0.5,0.25,0.9,1.0,1.0]
-        cands = LinearMPC.bnb_group_candidates(enc,z,z .> 0.5,s,l,u,64)
+        cands = DyadLinearMPC.bnb_group_candidates(enc,z,z .> 0.5,s,l,u,64)
         @test cands == [[0,1,0,1,1,1],[1,1,0,1,1,1],[0,1,0,0,1,1],[1,1,0,0,1,1]]
-        @test length(LinearMPC.bnb_group_candidates(enc,z,z .> 0.5,s,l,u,3)) == 1 # Beyond the limit, the nearest
+        @test length(DyadLinearMPC.bnb_group_candidates(enc,z,z .> 0.5,s,l,u,3)) == 1 # Beyond the limit, the nearest
         # Enumeration, the rounded values first
-        g_enum = LinearMPC.BnBGroup(:enumeration,enc.pos[1:3],Float64[],Float64[],LinearMPC.BnBLogicRow[])
-        cands = LinearMPC.bnb_group_candidates(g_enum,z,z .> 0.5,s,l,u,64)
+        g_enum = DyadLinearMPC.BnBGroup(:enumeration,enc.pos[1:3],Float64[],Float64[],DyadLinearMPC.BnBLogicRow[])
+        cands = DyadLinearMPC.bnb_group_candidates(g_enum,z,z .> 0.5,s,l,u,64)
         @test length(cands) == 8 && first(cands) == [0,0,0] && allunique(cands)
 
         configs = [(groups=[bits,([4],(;))],),                                             # An integer encoding and a binary at one step
@@ -1583,11 +1583,11 @@ Random.seed!(1234)
         states = [[0.0,0.0,0.0],[1.0,2.0,0.5],[2.0,0.5,1.5],[0.5,3.0,0.0]]
         refs = [[3.0,2.0,1.0],[4.4,0.5,0.3],[1.2,4.0,2.5]]
 
-        if !LinearMPC.daqp_updates_binaries()
+        if !DyadLinearMPC.daqp_updates_binaries()
             # Without darnstrom/daqp#208, DAQP keeps the binary constraints of its setup when the senses are
             # updated, so that the deferred binary controls would not be relaxed
             mpc = heat(groups=[bits])
-            @test_throws ErrorException LinearMPC.solve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
+            @test_throws ErrorException DyadLinearMPC.solve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
         else
             # With tol = 0 the objective equals that of the exact solve, and with tol = 0.5 it is within tol;
             # the objective of the relaxed search is a lower bound. With tol = Inf, the resolved solution is
@@ -1597,23 +1597,23 @@ Random.seed!(1234)
                 mpc_exact = heat(; config..., groups=[])
                 nx = mpc_exact.model.nx
                 θ = θk(mpc_exact,x[1:nx],r[1:nx])
-                _,fval_exact,_,_ = LinearMPC.solve(mpc_exact,θ)
+                _,fval_exact,_,_ = DyadLinearMPC.solve(mpc_exact,θ)
                 atol = 1e-6*(1+abs(fval_exact))
                 for tol in (0.0,0.5)
                     mpc = heat(; config..., tol)
-                    z,fval,flag,info = LinearMPC.solve(mpc,θ)
+                    z,fval,flag,info = DyadLinearMPC.solve(mpc,θ)
                     @test flag >= 1 && all(isbin,z[mpc.bnb.binary_ids])
                     @test fval_exact-atol <= fval <= fval_exact+tol+atol
                     tol == 0 && @test fval ≈ fval_exact atol=atol
                     @test info.relaxed_fval <= fval_exact+atol
                     @test mpc.opt_model.qpj.sense == mpc.mpQP.senses # Restored
                 end
-                z,fval,flag,info = LinearMPC.solve(heat(; config..., tol=Inf),θ)
+                z,fval,flag,info = DyadLinearMPC.solve(heat(; config..., tol=Inf),θ)
                 @test flag >= 1 && info.source == :deferred
                 fval > fval_exact+atol && (n_suboptimal += 1)
                 if fval > fval_exact+atol
                     # The gap to the relaxed search exceeds tol = 0: the full search finds the optimum
-                    _,fval0,_,info0 = LinearMPC.solve(heat(; config..., tol=0.0),θ)
+                    _,fval0,_,info0 = DyadLinearMPC.solve(heat(; config..., tol=0.0),θ)
                     @test info0.source == :search
                     @test fval0 ≈ fval_exact atol=atol
                 end
@@ -1625,16 +1625,16 @@ Random.seed!(1234)
             for config in configs[[1,3]]
                 mpc = heat(; config...)
                 θ = θk(mpc,zeros(2),[4.4,0.5])
-                _,fval_exact,_,info_exact = LinearMPC.solve(heat(; config..., groups=[]),θ)
-                s = LinearMPC.BnBSolve(mpc,θ)
-                a = LinearMPC.bnb_qp!(mpc,s; relaxed=true, search=true)
-                LinearMPC.bnb_restore!(mpc,s)
+                _,fval_exact,_,info_exact = DyadLinearMPC.solve(heat(; config..., groups=[]),θ)
+                s = DyadLinearMPC.BnBSolve(mpc,θ)
+                a = DyadLinearMPC.bnb_qp!(mpc,s; relaxed=true, search=true)
+                DyadLinearMPC.bnb_restore!(mpc,s)
                 B,D = mpc.bnb.binary_ids,mpc.bnb.is_deferred
                 @test a.flag >= 1 && s.nodes < info_exact.nodes
                 @test any(v -> 1e-3 < v < 1-1e-3, a.x[B[D]]) && all(isbin,a.x[B[.!D]])
                 @test mpc.opt_model.qpj.sense == mpc.mpQP.senses
                 # The exact search of the same model after the relaxed one
-                _,fval,_,_ = LinearMPC.DAQP.solve(mpc.opt_model)
+                _,fval,_,_ = DyadLinearMPC.DAQP.solve(mpc.opt_model)
                 @test fval ≈ fval_exact atol=1e-6*(1+abs(fval_exact))
             end
 
@@ -1645,22 +1645,22 @@ Random.seed!(1234)
             for (x,r) in zip(states,refs)
                 mpc = heat(; config..., tol=Inf)
                 θ = θk(mpc,x[1:2],r[1:2])
-                s = LinearMPC.BnBSolve(mpc,θ)
-                a = LinearMPC.bnb_qp!(mpc,s; relaxed=true, search=true)
-                LinearMPC.bnb_restore!(mpc,s)
+                s = DyadLinearMPC.BnBSolve(mpc,θ)
+                a = DyadLinearMPC.bnb_qp!(mpc,s; relaxed=true, search=true)
+                DyadLinearMPC.bnb_restore!(mpc,s)
                 B = mpc.bnb.binary_ids
                 l,u = s.bl[B],s.bu[B]
                 z = clamp.((a.x[B].-l)./(u.-l),0,1)
-                nc = [length(LinearMPC.bnb_group_candidates(g,z,z .> 0.5+LinearMPC.BNB_ROUND_TOL,s,l,u,4)) for g in mpc.bnb.groups]
+                nc = [length(DyadLinearMPC.bnb_group_candidates(g,z,z .> 0.5+DyadLinearMPC.BNB_ROUND_TOL,s,l,u,4)) for g in mpc.bnb.groups]
                 # (If the deferred binary decision variables are integral, the relaxed solution is returned)
                 integral = all(isbin,a.x[B[mpc.bnb.is_deferred]])
-                _,_,_,info = LinearMPC.solve(mpc,θ)
+                _,_,_,info = DyadLinearMPC.solve(mpc,θ)
                 @test info.qp_count == (integral ? 1 : 1+prod(nc))
                 if !integral && prod(nc) > 4
-                    _,fval,_,info = LinearMPC.solve(heat(; config..., tol=Inf, max_combinations=4),θ)
+                    _,fval,_,info = DyadLinearMPC.solve(heat(; config..., tol=Inf, max_combinations=4),θ)
                     @test info.qp_count == 2+sum(nc.-1)
-                    _,fval0,_,_ = LinearMPC.solve(heat(; config..., tol=0.0, max_combinations=4),θ)
-                    _,fval_exact,_,_ = LinearMPC.solve(heat(; config..., groups=[]),θ)
+                    _,fval0,_,_ = DyadLinearMPC.solve(heat(; config..., tol=0.0, max_combinations=4),θ)
+                    _,fval_exact,_,_ = DyadLinearMPC.solve(heat(; config..., groups=[]),θ)
                     @test fval0 ≈ fval_exact atol=1e-6*(1+abs(fval_exact))
                 end
             end
@@ -1673,8 +1673,8 @@ Random.seed!(1234)
                 for k in 1:25
                     r = refs[k <= 10 ? 1 : (k <= 18 ? 3 : 2)][1:nx]
                     θ = θk(mpc,x,r)
-                    z,fval,flag,info = LinearMPC.solve(mpc,θ)
-                    _,fval_exact,_,_ = LinearMPC.solve(mpc_exact,θ)
+                    z,fval,flag,info = DyadLinearMPC.solve(mpc,θ)
+                    _,fval_exact,_,_ = DyadLinearMPC.solve(mpc_exact,θ)
                     atol = 1e-6*(1+abs(fval_exact))
                     @test flag >= 1 && all(isbin,z[mpc.bnb.binary_ids])
                     @test fval_exact-atol <= fval <= fval_exact+tol+atol
@@ -1687,19 +1687,19 @@ Random.seed!(1234)
 
             # With a time limit that has passed, the candidate is returned and the time limit is restored
             mpc = heat(; configs[3]..., warm=true)
-            z,_,_,_ = LinearMPC.solve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
+            z,_,_,_ = DyadLinearMPC.solve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
             DAQP.settings(mpc.opt_model,Dict(:time_limit=>1e-9))
             x = mpc.model.F*zeros(2) + mpc.model.G*z[1:5]
-            z,_,flag,info = LinearMPC.solve(mpc,θk(mpc,x,[3.0,2.0]))
+            z,_,flag,info = DyadLinearMPC.solve(mpc,θk(mpc,x,[3.0,2.0]))
             @test flag >= 1 && info.source == :candidate && all(isbin,z[mpc.bnb.binary_ids])
             @test DAQP.settings(mpc.opt_model).time_limit == 1e-9
             @test mpc.opt_model.qpj.sense == mpc.mpQP.senses
 
             # A DAQP without darnstrom/daqp#208 is detected, and solve throws an error
-            LinearMPC.DAQP_UPDATES_BINARIES[] = false
-            @test_throws ErrorException LinearMPC.solve(mpc,θk(mpc,x,[3.0,2.0]))
-            LinearMPC.DAQP_UPDATES_BINARIES[] = nothing
-            @test LinearMPC.daqp_updates_binaries()
+            DyadLinearMPC.DAQP_UPDATES_BINARIES[] = false
+            @test_throws ErrorException DyadLinearMPC.solve(mpc,θk(mpc,x,[3.0,2.0]))
+            DyadLinearMPC.DAQP_UPDATES_BINARIES[] = nothing
+            @test DyadLinearMPC.daqp_updates_binaries()
         end
 
         # Removal of the groups
@@ -1707,7 +1707,7 @@ Random.seed!(1234)
         clear_deferred_binary_controls!(mpc)
         setup!(mpc)
         @test isempty(mpc.bnb.groups) && !any(mpc.bnb.is_deferred)
-        _,_,_,info = LinearMPC.solve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
+        _,_,_,info = DyadLinearMPC.solve(mpc,θk(mpc,zeros(2),[3.0,2.0]))
         @test !haskey(info,:source)
     end
 
@@ -1720,7 +1720,7 @@ Random.seed!(1234)
             G = [0.5 1 2 1.75 0; 0 0 0 0 0.6]
             second && (G = [G zeros(2,2); zeros(1,5) 0.4 0.8])
             nx,nu = size(G)
-            hm = LinearMPC.MPC(LinearMPC.Model(F,G; C=Matrix(1.0I,nx,nx)); Np)
+            hm = DyadLinearMPC.MPC(DyadLinearMPC.Model(F,G; C=Matrix(1.0I,nx,nx)); Np)
             set_objective!(hm; Q=[10.0,5.0,5.0][1:nx], R=fill(1e-3,nu), eu=[0,0,0,0.1,0.05,0,0][1:nu])
             set_input_bounds!(hm; umin=zeros(nu), umax=ones(nu))
             set_binary_controls!(hm,1:nu,[Nc_bits,Nc_bits,Nc_bits,Nc_on,Nc_pump,Nc_bits,Nc_bits][1:nu])
@@ -1734,7 +1734,7 @@ Random.seed!(1234)
             setup!(hm)
             return hm
         end
-        θk(mpc,x,r) = LinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+        θk(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
         isbin(v) = min(abs(v),abs(v-1)) < 1e-6
         files(dir) = Dict(f => read(joinpath(dir,f),String) for f in readdir(dir))
         bits = ([1,2,3],(weights=[1,2,4],))
@@ -1743,9 +1743,9 @@ Random.seed!(1234)
         for warm in (false,true)
             with,off,without = tempname(),tempname(),tempname()
             mpc = heat(groups=[bits,([5],(;))], Nc_on=4, Nc_pump=4, warm=warm)
-            LinearMPC.codegen(mpc; dir=with)
-            LinearMPC.codegen(mpc; dir=off, bnb_deferred=false)
-            LinearMPC.codegen(heat(Nc_on=4, Nc_pump=4, warm=warm); dir=without)
+            DyadLinearMPC.codegen(mpc; dir=with)
+            DyadLinearMPC.codegen(mpc; dir=off, bnb_deferred=false)
+            DyadLinearMPC.codegen(heat(Nc_on=4, Nc_pump=4, warm=warm); dir=without)
             @test files(off) == files(without)
             @test !occursin("DAQP_BNB_DEFERRED", read(joinpath(off,"mpc_workspace.h"),String))
             @test occursin("#define DAQP_BNB_DEFERRED", read(joinpath(with,"mpc_workspace.h"),String))
@@ -1760,7 +1760,7 @@ Random.seed!(1234)
             """
             function build_lib(mpc)
                 srcdir = tempname()
-                LinearMPC.codegen(mpc; dir=srcdir)
+                DyadLinearMPC.codegen(mpc; dir=srcdir)
                 open(joinpath(srcdir, "shim.c"), "w") do f; write(f, shim); end
                 src = [f for f in readdir(srcdir) if last(f, 1) == "c"]
                 testlib = "mpctest." * Base.Libc.Libdl.dlext
@@ -1774,9 +1774,9 @@ Random.seed!(1234)
                                           (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), u, x, r, d)
             cint(sym,s) = unsafe_load(Ptr{Cint}(sym(s)))
             sources = Dict(0=>:search,1=>:candidate,2=>:deferred)
-            julia = LinearMPC.daqp_updates_binaries() # The Julia solve with deferred binary controls (darnstrom/daqp#208)
+            julia = DyadLinearMPC.daqp_updates_binaries() # The Julia solve with deferred binary controls (darnstrom/daqp#208)
 
-            # Closed loop through the generated code, compared with the exact solve and with LinearMPC.solve
+            # Closed loop through the generated code, compared with the exact solve and with DyadLinearMPC.solve
             for config in [(groups=[bits,([4],(;))],),
                            (groups=[bits,([5],(;))], Nc_bits=2, Nc_on=4, Nc_pump=4),
                            (groups=[bits,([5],(;))], Nc_bits=2, Nc_on=4, Nc_pump=4, warm=true),
@@ -1788,7 +1788,7 @@ Random.seed!(1234)
                 tol = mpc.settings.deferred_tol
                 sym = build_lib(mpc)
                 @test unsafe_load(Ptr{Cdouble}(sym(:bnb_deferred_tol))) == tol
-                R = LinearMPC.hessian_factor(mpc.mpQP)
+                R = DyadLinearMPC.hessian_factor(mpc.mpQP)
                 nx,nu = mpc.model.nx,mpc.model.nu
                 u,x,d,ldp = zeros(nu),zeros(nx),zeros(0),zeros(length(mpc.mpQP.f))
                 used = Symbol[]
@@ -1802,14 +1802,14 @@ Random.seed!(1234)
                     v = R.L\(mpc.mpQP.f + mpc.mpQP.f_theta*θ)
                     z_c = R.U\(ldp-v)
                     J = 0.5*dot(ldp,ldp)-0.5*dot(v,v)
-                    _,fval_exact,_,_ = LinearMPC.solve(mpc_exact,θ)
+                    _,fval_exact,_,_ = DyadLinearMPC.solve(mpc_exact,θ)
                     atol = 1e-6*(1+abs(fval_exact))
                     @test flag == 1
                     @test u ≈ z_c[1:nu] atol=1e-6
                     @test all(isbin, z_c[mpc.bnb.binary_ids])
                     @test fval_exact-atol <= J <= fval_exact+tol+atol
                     if julia
-                        z,fval,_,_ = LinearMPC.solve(mpc_jl,θ)
+                        z,fval,_,_ = DyadLinearMPC.solve(mpc_jl,θ)
                         @test isapprox(u, z[1:nu]; atol=1e-6) || abs(J-fval) <= atol
                     end
                     x = mpc.model.F*x + mpc.model.G*u
@@ -1826,24 +1826,24 @@ Random.seed!(1234)
     end
 
     @testset "Robust MPC" begin
-        using LinearMPC
+        using DyadLinearMPC
         F = [1.0 1 ;0 1]
         G = [1;0.5;;]
-        mpc = LinearMPC.MPC(F,G;Np=10)
+        mpc = DyadLinearMPC.MPC(F,G;Np=10)
         set_prestabilizing_feedback!(mpc)
         set_bounds!(mpc;umin=-ones(1),umax=ones(1))
         set_output_bounds!(mpc;ymin=-0.15*ones(2),ymax=ones(2),soft=false)
-        mpqp_nominal = LinearMPC.mpc2mpqp(mpc)
+        mpqp_nominal = DyadLinearMPC.mpc2mpqp(mpc)
         dynamics = (x,u,d) -> mpc.model.F*x + mpc.model.G*u
         x0 = [0.9;0.5]
-        sim_nominal = LinearMPC.Simulation(dynamics, mpc;x0,N=100,r=[0.0;0])
+        sim_nominal = DyadLinearMPC.Simulation(dynamics, mpc;x0,N=100,r=[0.0;0])
         @test minimum(sim_nominal.xs[2,:]) < -0.1 
         wmin,wmax = -[1e-2;1e-1],[1e-2;1e-1]
         set_disturbance!(mpc,wmin,wmax)
-        mpqp_tightened = LinearMPC.mpc2mpqp(mpc)
+        mpqp_tightened = DyadLinearMPC.mpc2mpqp(mpc)
         @test sum(mpqp_tightened.bu) < sum(mpqp_nominal.bu)
         @test sum(mpqp_tightened.bl) > sum(mpqp_nominal.bl)
-        sim_tight = LinearMPC.Simulation(dynamics, mpc;x0,N=100,r=[0.0;0])
+        sim_tight = DyadLinearMPC.Simulation(dynamics, mpc;x0,N=100,r=[0.0;0])
         @test minimum(sim_tight.xs[2,:]) > -0.1
     end
 
@@ -1852,7 +1852,7 @@ Random.seed!(1234)
         A = [1 1; 0 1]
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=5)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=5)
         x = [0.5;1]
         u = compute_control(mpc,x)
         utraj = compute_control(mpc,x)
@@ -1860,9 +1860,9 @@ Random.seed!(1234)
     end
 
     @testset "Observer" begin
-        mpc0,th_range = LinearMPC.mpc_examples("invpend",100)
+        mpc0,th_range = DyadLinearMPC.mpc_examples("invpend",100)
         move_block!(mpc0,[1,1,5,10,10])
-        LinearMPC.set_state_observer!(mpc0;Q=1e2*[1e-3,1,1e-3,1],R=[1,0.1])
+        DyadLinearMPC.set_state_observer!(mpc0;Q=1e2*[1e-3,1,1e-3,1],R=[1,0.1])
         empc = ExplicitMPC(mpc0;range=th_range,build_tree=true)
 
         for mpc in [mpc0,empc] 
@@ -1876,14 +1876,14 @@ Random.seed!(1234)
             us = zeros(1,N);
             xhats = zeros(4,N);
 
-            LinearMPC.set_state!(mpc.state_observer,x)
+            DyadLinearMPC.set_state!(mpc.state_observer,x)
             for k = 1:N
                 xs[:,k],ys[:,k] = x,mpc.model.C*x + [0.05;0.005].*randn(2)
-                LinearMPC.correct!(mpc.state_observer,ys[:,k])
+                DyadLinearMPC.correct!(mpc.state_observer,ys[:,k])
                 xhats[:,k] = mpc.state_observer.x
                 u = compute_control(mpc,mpc.state_observer.x;r=rs[:,k])
                 us[:,k] .= u
-                LinearMPC.predict!(mpc.state_observer,u)
+                DyadLinearMPC.predict!(mpc.state_observer,u)
                 x = mpc.model.F*x + mpc.model.G*u + [0 0; 0.05 0; 0 0;0 0.005]*randn(2)
             end
 
@@ -1891,7 +1891,7 @@ Random.seed!(1234)
 
             # Test to generate C code
             srcdir = tempname()
-            LinearMPC.codegen(mpc; dir=srcdir)
+            DyadLinearMPC.codegen(mpc; dir=srcdir)
             src = [f for f in readdir(srcdir) if last(f,1) == "c"]
 
             if !isnothing(Sys.which("gcc"))
@@ -1902,9 +1902,9 @@ Random.seed!(1234)
                 u = randn(1) 
                 y = zeros(2)
 
-                LinearMPC.set_state!(mpc,x)
-                xref1 = copy(LinearMPC.predict!(mpc.state_observer,u))
-                xref2 = copy(LinearMPC.correct!(mpc.state_observer,y))
+                DyadLinearMPC.set_state!(mpc,x)
+                xref1 = copy(DyadLinearMPC.predict!(mpc.state_observer,u))
+                xref2 = copy(DyadLinearMPC.correct!(mpc.state_observer,y))
 
                 global templib = joinpath(srcdir, testlib)
                 ccall(("mpc_predict_state", templib), Cint,
@@ -1921,16 +1921,16 @@ Random.seed!(1234)
         Gd = [1 0;0 0]
         Dd = [0 1]
 
-        mpc = LinearMPC.MPC(F,G;C=[1 0],Gd,Dd)
-        LinearMPC.set_state_observer!(mpc;Q=[1.0, 1],R=[1e-2])
+        mpc = DyadLinearMPC.MPC(F,G;C=[1 0],Gd,Dd)
+        DyadLinearMPC.set_state_observer!(mpc;Q=[1.0, 1],R=[1e-2])
         get_measurement = (x,d) -> [x[1] + d[2] + 0.01*randn()]
 
-        sim = LinearMPC.Simulation(mpc;x0=[1;0],
+        sim = DyadLinearMPC.Simulation(mpc;x0=[1;0],
                                    d=[1;1],N=100,get_measurement)
         @test abs(mean(sim.ys[end-20:end])) < 1e-2
 
         srcdir = tempname()
-        LinearMPC.codegen(mpc,dir=srcdir)
+        DyadLinearMPC.codegen(mpc,dir=srcdir)
  
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
 
@@ -1943,9 +1943,9 @@ Random.seed!(1234)
             y = randn(1)
             d = randn(2)
 
-            LinearMPC.set_state!(mpc,x)
-            xref1 = copy(LinearMPC.predict!(mpc.state_observer,u,d))
-            xref2 = copy(LinearMPC.correct!(mpc.state_observer,y,d))
+            DyadLinearMPC.set_state!(mpc,x)
+            xref1 = copy(DyadLinearMPC.predict!(mpc.state_observer,u,d))
+            xref2 = copy(DyadLinearMPC.correct!(mpc.state_observer,y,d))
 
             global templib = joinpath(srcdir,testlib)
             ccall(("mpc_predict_state", templib), Cint, (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), x,u,d)
@@ -1959,27 +1959,27 @@ Random.seed!(1234)
         C = [1.0 0]
         dynamics = (x,u,d) -> F*x + G*u + [0.01;0.0]
 
-        nominal = LinearMPC.MPC(F,G;Ts=0.1,C=C,Np=20)
+        nominal = DyadLinearMPC.MPC(F,G;Ts=0.1,C=C,Np=20)
         set_objective!(nominal;Q=[1.0],R=[0.0],Rr=[0.1])
         set_bounds!(nominal;umin=[-1.0],umax=[1.0])
         sim_nominal = Simulation(dynamics, nominal; x0=zeros(2), N=100, r=[0.5])
 
-        tracked = LinearMPC.MPC(F,G;Ts=0.1,C=C,Np=20)
+        tracked = DyadLinearMPC.MPC(F,G;Ts=0.1,C=C,Np=20)
         set_objective!(tracked;Q=[1.0],R=[0.0],Rr=[0.1])
         set_bounds!(tracked;umin=[-1.0],umax=[1.0])
-        obs = LinearMPC.set_offset_free_observer!(tracked; method=:velocity,
+        obs = DyadLinearMPC.set_offset_free_observer!(tracked; method=:velocity,
                                                   Q=[1e-3,1e-3], R=[1e-4])
         sim_tracked = Simulation(dynamics, tracked; x0=zeros(2), N=100, r=[0.5])
 
         @test obs.formulation == :velocity
         @test size(tracked.model.Gd) == (2,1)
         @test size(tracked.model.Dd) == (1,1)
-        @test length(LinearMPC.get_estimated_disturbance(tracked)) == 1
+        @test length(DyadLinearMPC.get_estimated_disturbance(tracked)) == 1
         @test abs(sim_nominal.xs[1,end] - 0.5) > 5e-2
         @test abs(sim_tracked.xs[1,end] - 0.5) < 1e-3
 
         srcdir = tempname()
-        LinearMPC.codegen(tracked, dir=srcdir)
+        DyadLinearMPC.codegen(tracked, dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
 
         if !isnothing(Sys.which("gcc"))
@@ -1991,8 +1991,8 @@ Random.seed!(1234)
             y = randn(1)
             ref = [0.5]
 
-            LinearMPC.set_state!(tracked.state_observer, xaug)
-            xref_pred = copy(LinearMPC.predict!(tracked.state_observer.estimator, uin))
+            DyadLinearMPC.set_state!(tracked.state_observer, xaug)
+            xref_pred = copy(DyadLinearMPC.predict!(tracked.state_observer.estimator, uin))
             xpred = copy(xaug)
 
             global templib = joinpath(srcdir, testlib)
@@ -2000,14 +2000,14 @@ Random.seed!(1234)
                   (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), xpred, uin, C_NULL)
             @test norm(xpred-xref_pred) < 1e-9
 
-            LinearMPC.set_state!(tracked.state_observer, xaug)
-            xref_corr = copy(LinearMPC.correct!(tracked.state_observer.estimator, y))
+            DyadLinearMPC.set_state!(tracked.state_observer, xaug)
+            xref_corr = copy(DyadLinearMPC.correct!(tracked.state_observer.estimator, y))
             xcorr = copy(xaug)
             ccall(("mpc_correct_state", templib), Cvoid,
                   (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), xcorr, y, C_NULL)
             @test norm(xcorr-xref_corr) < 1e-9
 
-            LinearMPC.set_state!(tracked.state_observer, xaug)
+            DyadLinearMPC.set_state!(tracked.state_observer, xaug)
             tracked.uprev .= 0
             uref = compute_control(tracked, tracked.state_observer.x; r=ref)
             uc = zeros(1)
@@ -2022,13 +2022,13 @@ Random.seed!(1234)
             @test abs(dref[1] - xaug[3]) < 1e-9
         end
 
-        disturbance_mpc = LinearMPC.MPC(F,G;Ts=0.1,C=C,Gd=[1.0;0.0;;],Np=20)
+        disturbance_mpc = DyadLinearMPC.MPC(F,G;Ts=0.1,C=C,Gd=[1.0;0.0;;],Np=20)
         set_objective!(disturbance_mpc;Q=[1.0],R=[0.0],Rr=[0.1])
         set_bounds!(disturbance_mpc;umin=[-1.0],umax=[1.0])
-        LinearMPC.set_offset_free_observer!(disturbance_mpc; method=:velocity,
+        DyadLinearMPC.set_offset_free_observer!(disturbance_mpc; method=:velocity,
                                             Q=[1e-3,1e-3], R=[1e-4])
-        LinearMPC.set_state!(disturbance_mpc, zeros(2))
-        y = LinearMPC.correct_state!(disturbance_mpc, zeros(1), [0.2])
+        DyadLinearMPC.set_state!(disturbance_mpc, zeros(2))
+        y = DyadLinearMPC.correct_state!(disturbance_mpc, zeros(1), [0.2])
         u = compute_control(disturbance_mpc, y; r=[0.5], d=[0.2])
         @test length(u) == 1
     end
@@ -2062,13 +2062,13 @@ Random.seed!(1234)
             Aup = trial % 4 == 0 ? zeros(2, nu) : randn(rng, 2, nu)
             δ = rand(rng, nx); wmin, wmax = -rand(rng, nw), rand(rng, nw)
             for t in 1:3
-                ut, lt = LinearMPC.constraint_tightening(Ax - Au*K, F - G*K, [t+1], wmin, wmax, δ;
+                ut, lt = DyadLinearMPC.constraint_tightening(Ax - Au*K, F - G*K, [t+1], wmin, wmax, δ;
                                                          Aup = -Aup*K, Bw, F0 = F)
                 up, lo = worst_case_deviation(F, G, K, Bw, Ax, Au, Aup, δ, wmin, wmax, t)
                 @test ut ≈ up
                 @test lt ≈ lo
             end
-            ut, lt = LinearMPC.constraint_tightening(Ax - Au*K, F - G*K, [1], wmin, wmax, δ; Bw, F0 = F)
+            ut, lt = DyadLinearMPC.constraint_tightening(Ax - Au*K, F - G*K, [1], wmin, wmax, δ; Bw, F0 = F)
             @test iszero(ut) && iszero(lt)
         end
     end
@@ -2080,7 +2080,7 @@ Random.seed!(1234)
         Ax, Au, Aup = [1.0 0.0; 0.5 0.2; 0.0 0.0], [0.0; 1.0; 1.0;;], [0.0; 0.0; -1.0;;]
         δ, Bw, wmin, wmax = [0.01, 0.02], G, [-0.3], [0.2]
         function bounds(robust)
-            mpc = LinearMPC.MPC(F, G; C = [1.0 0.0], Np)
+            mpc = DyadLinearMPC.MPC(F, G; C = [1.0 0.0], Np)
             mpc.settings.preprocess_mpqp = false
             set_prestabilizing_feedback!(mpc)
             add_constraint!(mpc; Ax, Au, Aup, lb = -ones(3), ub = ones(3), ks = 2:Np)
@@ -2088,7 +2088,7 @@ Random.seed!(1234)
                 set_x0_uncertainty!(mpc, δ)
                 set_disturbance!(mpc, wmin, wmax; Bw)
             end
-            mpqp = LinearMPC.mpc2mpqp(mpc)
+            mpqp = DyadLinearMPC.mpc2mpqp(mpc)
             mpqp.bu, mpqp.bl, mpc.K
         end
         bu0, bl0, K = bounds(false)
@@ -2106,7 +2106,7 @@ Random.seed!(1234)
         F,G = [1 0.1; 0 1], [0.005;0.1;;] # double integrator with Ts=0.1
         δ = [0.02, 0.02]
         function run(robust)
-            mpc= LinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
+            mpc= DyadLinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
             set_prestabilizing_feedback!(mpc)
             set_bounds!(mpc;umin=[-0.2],umax=[0.2],ymin=[-0.5],ymax=[0.5])
             robust && set_x0_uncertainty!(mpc,δ)
@@ -2120,7 +2120,7 @@ Random.seed!(1234)
         end
         @test run(false) > 0.5 + 1e-3
         @test run(true) <= 0.5 + 1e-6
-        mpc = LinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
+        mpc = DyadLinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
         @test_throws ArgumentError set_x0_uncertainty!(mpc, [0.1])
         @test_throws ArgumentError set_x0_uncertainty!(mpc, [0.1, -0.1])
         set_x0_uncertainty!(mpc, 0.1)
@@ -2132,7 +2132,7 @@ Random.seed!(1234)
         F,G = [1 0.1; 0 1], [0.005;0.1;;]
         wmax = 0.05
         function build(Bw)
-            mpc = LinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
+            mpc = DyadLinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
             set_prestabilizing_feedback!(mpc)
             set_bounds!(mpc;umin=[-0.2],umax=[0.2],ymin=[-0.5],ymax=[0.5])
             Bw === nothing ? set_disturbance!(mpc, -abs.(G[:,1])*wmax, abs.(G[:,1])*wmax) :
@@ -2143,7 +2143,7 @@ Random.seed!(1234)
         @test mpc_Bw.model.Bw == G
         @test mpc_Bw.model.wmin == [-wmax]
         @test size(mpc_box.model.Bw) == (2, 2)
-        q_Bw, q_box = LinearMPC.mpc2mpqp(mpc_Bw), LinearMPC.mpc2mpqp(mpc_box)
+        q_Bw, q_box = DyadLinearMPC.mpc2mpqp(mpc_Bw), DyadLinearMPC.mpc2mpqp(mpc_box)
         @test sum(q_Bw.bu) > sum(q_box.bu)
         for w in (wmax, -wmax)
             x = zeros(2); ymax = -Inf
@@ -2155,7 +2155,7 @@ Random.seed!(1234)
             @test ymax <= 0.5 + 1e-6
         end
         # Without tightening the same disturbance violates the bound
-        mpc = LinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
+        mpc = DyadLinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;])
         set_prestabilizing_feedback!(mpc)
         set_bounds!(mpc;umin=[-0.2],umax=[0.2],ymin=[-0.5],ymax=[0.5])
         x = zeros(2); ymax = -Inf
@@ -2172,14 +2172,14 @@ Random.seed!(1234)
         # Each block must be tightened as when it is the only block, also for unsorted ks
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
         function bounds(blocks; wmin=zeros(0), wmax=zeros(0))
-            mpc = LinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
+            mpc = DyadLinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
             mpc.settings.preprocess_mpqp = false
             for (Ax, ks) in blocks
                 add_constraint!(mpc; Ax, lb=[-1.0], ub=[1.0], ks)
             end
             set_x0_uncertainty!(mpc, [0.01, 0.02])
             isempty(wmin) || set_disturbance!(mpc, wmin, wmax)
-            mpqp = LinearMPC.mpc2mpqp(mpc)
+            mpqp = DyadLinearMPC.mpc2mpqp(mpc)
             mpqp.bu, mpqp.bl
         end
         b1, b2 = ([1.0 0.0], 2:10), ([0.0 1.0], [6, 3, 8])
@@ -2198,7 +2198,7 @@ Random.seed!(1234)
         # when it is the only block
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
         function bounds(blocks; robust)
-            mpc = LinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
+            mpc = DyadLinearMPC.MPC(F, G; C=[1.0 0.0], Np=10)
             mpc.settings.preprocess_mpqp = false
             for (Ax, tighten) in blocks
                 add_constraint!(mpc; Ax, lb=[-1.0], ub=[1.0], ks=2:10, tighten)
@@ -2207,7 +2207,7 @@ Random.seed!(1234)
                 set_x0_uncertainty!(mpc, [0.01, 0.02])
                 set_disturbance!(mpc, [-1e-3], [1e-3]; Bw=G)
             end
-            mpqp = LinearMPC.mpc2mpqp(mpc)
+            mpqp = DyadLinearMPC.mpc2mpqp(mpc)
             mpqp.bu, mpqp.bl
         end
         a1, a2 = [1.0 0.0], [0.0 1.0]
@@ -2217,14 +2217,14 @@ Random.seed!(1234)
         @test bu ≈ [bu1; bu2]
         @test bl ≈ [bl1; bl2]
         @test all(bu1 .< 1.0)
-        @test LinearMPC.Constraint(zeros(1, 1), a1, zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), [1.0], [-1.0], 1:1, false, false, 0).tighten
+        @test DyadLinearMPC.Constraint(zeros(1, 1), a1, zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), [1.0], [-1.0], 1:1, false, false, 0).tighten
     end
     @testset "Constant offset" begin
         F,G = [1 0.1; 0 1], [0.005;0.1;;] # double integrator with Ts=0.1
-        mpc= LinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;], f_offset = [0.1;0.1])
+        mpc= DyadLinearMPC.MPC(F,G;Ts=0.1,Np=25,C=[1 0;], f_offset = [0.1;0.1])
         set_objective!(mpc,R=0,Rr=1,Q=1)
         set_bounds!(mpc;umin=[-2],umax=[2],ymin=[-0.5],ymax=[0.5])
-        LinearMPC.set_state_observer!(mpc;Q=1e-3)
+        DyadLinearMPC.set_state_observer!(mpc;Q=1e-3)
         dynamics = (x,u,d) -> mpc.model.F*x + mpc.model.G*u + [0.1;0.1]
         get_measurement = (x,d) -> mpc.state_observer.C*x + 0.01*randn(1)
         sim= Simulation(dynamics,mpc;r=[0.5], get_measurement)
@@ -2234,18 +2234,18 @@ Random.seed!(1234)
         f = (x,u,d) -> [x[1] - x[2];x[2]+u[1]-1]
         xo,uo = [0.5;0.5],[0.5]
         Ts  = 0.1
-        model = LinearMPC.Model(f,(x,u,d)->x,xo,uo,Ts)
+        model = DyadLinearMPC.Model(f,(x,u,d)->x,xo,uo,Ts)
 
-        mpc = LinearMPC.MPC(model;Np=100)
+        mpc = DyadLinearMPC.MPC(model;Np=100)
         mpc.settings.reference_tracking = false
         set_objective!(mpc;Q=1,R=1,Rr=0)
 
-        sim = LinearMPC.Simulation(mpc;x0 = [0.1;0], N = 100)
+        sim = DyadLinearMPC.Simulation(mpc;x0 = [0.1;0], N = 100)
         @test norm(sim.xs[:,end]-xo) < 1e-4
         # Update opearting point
         xo,uo = [1;1],[0]
         set_operating_point!(mpc;xo=xo,uo=uo)
-        sim = LinearMPC.Simulation(mpc;x0 = [0.1;0], N = 100)
+        sim = DyadLinearMPC.Simulation(mpc;x0 = [0.1;0], N = 100)
         @test norm(sim.xs[:,end]-xo) < 1e-4
     end
 
@@ -2255,8 +2255,8 @@ Random.seed!(1234)
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
         xo, uo, R = [0.5, 0.0], [0.2], 0.3
         function control(; operating_point, K, Rr)
-            model = LinearMPC.Model(F, G; C=[1.0 0.0], xo, uo = operating_point ? uo : zeros(1))
-            mpc = LinearMPC.MPC(model; Np=10)
+            model = DyadLinearMPC.Model(F, G; C=[1.0 0.0], xo, uo = operating_point ? uo : zeros(1))
+            mpc = DyadLinearMPC.MPC(model; Np=10)
             mpc.settings.reference_tracking = false
             eu = operating_point ? zeros(1) : -R*uo
             set_objective!(mpc; Q=[1.0], R=[R], Rr=[Rr], eu)
@@ -2276,7 +2276,7 @@ Random.seed!(1234)
         # The Riccati solution is a property of the model and the stage weights alone: it depends on
         # neither the operating point nor the reference setting.
         function terminal_weight(tracking, x)
-            m = LinearMPC.MPC(LinearMPC.Model(F,G;C,Ts=0.1,xo=x);Np=10)
+            m = DyadLinearMPC.MPC(DyadLinearMPC.Model(F,G;C,Ts=0.1,xo=x);Np=10)
             m.settings.reference_tracking = tracking
             set_objective!(m;Q=[1.0],R=[0.1])
             set_terminal_cost!(m)
@@ -2289,7 +2289,7 @@ Random.seed!(1234)
         # Under tracking the terminal weight enters the constant term of the condensed QP, and only
         # through the operating point: the stage output cost is centered on the reference instead.
         function tracking_mpc(x)
-            m = LinearMPC.MPC(LinearMPC.Model(F,G;C,Ts=0.1,xo=x);Np=10,Nc=5)
+            m = DyadLinearMPC.MPC(DyadLinearMPC.Model(F,G;C,Ts=0.1,xo=x);Np=10,Nc=5)
             set_objective!(m;Q=[1.0],R=[0.0],Rr=[0.1])
             set_terminal_cost!(m)
             setup!(m)
@@ -2316,12 +2316,12 @@ Random.seed!(1234)
         A = [1 1; 0 1]
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=3)
         set_bounds!(mpc; umin=[0.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1], Eu=[1.0;;])
         setup!(mpc)
 
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test nx == 2  # State dimension
         @test nr == 2  # Reference dimension (no preview)
         @test nd == 0  # No disturbance
@@ -2350,8 +2350,8 @@ Random.seed!(1234)
         F, G = [1.0 0.1; 0.0 1.0], [0.005; 0.1;;]
         R, eu = 0.3, 0.5
         function control(; cost, Nc)
-            model = cost == :uo ? LinearMPC.Model(F, G; C=[1.0 0.0], uo=[-eu/R]) : LinearMPC.Model(F, G; C=[1.0 0.0])
-            mpc = LinearMPC.MPC(model; Np=10, Nc)
+            model = cost == :uo ? DyadLinearMPC.Model(F, G; C=[1.0 0.0], uo=[-eu/R]) : DyadLinearMPC.Model(F, G; C=[1.0 0.0])
+            mpc = DyadLinearMPC.MPC(model; Np=10, Nc)
             mpc.settings.reference_tracking = false
             cost == :uo && set_objective!(mpc; Q=[1.0], R=[R])
             cost == :eu && set_objective!(mpc; Q=[1.0], R=[R], eu=[eu])
@@ -2368,16 +2368,16 @@ Random.seed!(1234)
         A = [1 1; 0 1]
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=3)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1], Eu=[1.0;;])
         mpc.settings.parameter_preview = true
         setup!(mpc)
 
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test (nx, nr, nd, nuprev, np) == (2, 2, 0, 0, 5)
-        @test LinearMPC.format_affine_parameters(mpc, [0.25]) == fill(0.25, 5)
-        @test LinearMPC.format_affine_parameters(mpc, [0.25 0.5]) == [0.25, 0.5, 0.5, 0.5, 0.5]
+        @test DyadLinearMPC.format_affine_parameters(mpc, [0.25]) == fill(0.25, 5)
+        @test DyadLinearMPC.format_affine_parameters(mpc, [0.25 0.5]) == [0.25, 0.5, 0.5, 0.5, 0.5]
 
         u_const = compute_control(mpc, [-1.0, 0.0]; r=[0.0, 0.0], p=[1.0])
         u_preview = compute_control(mpc, [-1.0, 0.0]; r=[0.0, 0.0], p=[1.0 0.0 0.0 0.0 0.0])
@@ -2388,7 +2388,7 @@ Random.seed!(1234)
         A = [0 -0.37; 0.37 0.74]
         B = [0.37; 0.26]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=5, Nc=3)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=5, Nc=3)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1], Eu=[1.0;;])
         set_terminal_cost!(mpc)
@@ -2400,11 +2400,11 @@ Random.seed!(1234)
         p_traj = zeros(1, N_sim)
         p_traj[1, :] .= -0.5
 
-        sim_with_p = LinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj, p=p_traj)
+        sim_with_p = DyadLinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj, p=p_traj)
         @test size(sim_with_p.xs) == (2, N_sim)
         @test size(sim_with_p.us) == (1, N_sim)
 
-        sim_no_p = LinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
+        sim_no_p = DyadLinearMPC.Simulation(mpc; x0=[1.0, 0.0], N=N_sim, r=r_traj)
 
         cost_p = sum(abs2, sim_with_p.xs) +
             0.1*sum(abs2, sim_with_p.us) +
@@ -2421,12 +2421,12 @@ Random.seed!(1234)
     end
 
     @testset "Generalized Parameters in State Objective" begin
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=4, Nc=4)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[0.0], R=[1e-6], Ex=[1.0;;], ex=[0.1])
         setup!(mpc)
 
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test (nx, nr, nd, nuprev, np) == (1, 1, 0, 0, 1)
 
         u_nom = compute_control(mpc, [1.0]; r=[0.0], p=[0.0])
@@ -2442,7 +2442,7 @@ Random.seed!(1234)
         A = [1 1; 0 1]
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B; C, Np=10, Nc=10)
+        mpc = DyadLinearMPC.MPC(A, B; C, Np=10, Nc=10)
         set_bounds!(mpc; umin=[-2.0], umax=[2.0])
         set_objective!(mpc; Q=[1.0, 1.0], R=[0.1], Ex=[0.2; 0.1;;], Eu=[1.0;;])
         mpc.settings.parameter_preview = true
@@ -2457,7 +2457,7 @@ Random.seed!(1234)
         u_julia = compute_control(mpc, x; r=r, p=p_traj)
 
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
         src = [f for f in readdir(srcdir) if last(f,1) == "c"]
         @test !isempty(src)
 
@@ -2478,16 +2478,16 @@ Random.seed!(1234)
     end
 
     @testset "Generalized Parameters in Constraints" begin
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=4, Nc=4)
         set_bounds!(mpc; umin=[0.0], umax=[2.0])
         set_objective!(mpc; Q=[0.0], R=[1e-6], Eu=[-1.0;;], eu=[-0.1])
         add_constraint!(mpc; Au=[1.0;;], Ap=[1.0;;], ub=[1.0], ks=1:mpc.Np)
         setup!(mpc)
 
-        nx, nr, nd, nuprev, np = LinearMPC.get_parameter_dims(mpc)
+        nx, nr, nd, nuprev, np = DyadLinearMPC.get_parameter_dims(mpc)
         @test (nx, nr, nd, nuprev, np) == (1, 1, 0, 0, 1)
-        @test LinearMPC.format_affine_parameters(mpc, [0.25]) == [0.25]
-        @test LinearMPC.format_affine_parameters(mpc, [0.25 0.5]) == [0.25]
+        @test DyadLinearMPC.format_affine_parameters(mpc, [0.25]) == [0.25]
+        @test DyadLinearMPC.format_affine_parameters(mpc, [0.25 0.5]) == [0.25]
 
         u_nom = compute_control(mpc, [0.0]; r=[0.0], p=[0.0])
         u_tight = compute_control(mpc, [0.0]; r=[0.0], p=[0.75])
@@ -2497,15 +2497,15 @@ Random.seed!(1234)
         @test u_tight[1] ≈ 0.25 atol=1e-6
         @test u_preview ≈ u_tight
 
-        pr = LinearMPC.ParameterRange(mpc)
+        pr = DyadLinearMPC.ParameterRange(mpc)
         @test length(pr.pmin) == np
-        region = LinearMPC.range2region(pr)
+        region = DyadLinearMPC.range2region(pr)
         @test region.lb == [pr.xmin; pr.rmin; pr.dmin; pr.umin; pr.pmin]
         @test region.ub == [pr.xmax; pr.rmax; pr.dmax; pr.umax; pr.pmax]
     end
 
     @testset "Generalized Parameter Codegen for Explicit Preview" begin
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=3, Nc=3)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=3, Nc=3)
         set_bounds!(mpc; umin=[0.0], umax=[2.0])
         set_objective!(mpc; Q=[0.0], R=[1.0], Eu=[-2.0;;])
         mpc.settings.parameter_preview = true
@@ -2518,7 +2518,7 @@ Random.seed!(1234)
         u_julia = compute_control(mpc, x; r=r, p=p)
 
         srcdir = tempname()
-        LinearMPC.codegen(mpc; dir=srcdir)
+        DyadLinearMPC.codegen(mpc; dir=srcdir)
 
         if !isnothing(Sys.which("gcc"))
             testlib = "mpctest." * Base.Libc.Libdl.dlext
@@ -2537,7 +2537,7 @@ Random.seed!(1234)
         A = [0 1; 10 0]
         B = [0; 1]
         C = [1.0 0; 0 1.0]
-        mpc = LinearMPC.MPC(A, B, 0.1)
+        mpc = DyadLinearMPC.MPC(A, B, 0.1)
         set_bounds!(mpc;umin=-1,umax=1)
         add_constraint!(mpc;Au=[-1.0;;],lb=[-0.9],ub=[1.5],ks=1:10)
         add_constraint!(mpc;Au=[1.0;;],lb=[-0.5],ub=[2.0],ks=1:10)
@@ -2548,26 +2548,26 @@ Random.seed!(1234)
     end
 
     @testset "Set offset" begin
-        mpc = LinearMPC.MPC([0.778800783;;],[1.0;;];C=[0.44239843385;;])
-        LinearMPC.set_objective!(mpc; Q=[1.0], R=[0.0], Rr=[0.1])
-        LinearMPC.set_offset!(mpc; uo=[10.0],ho=[0.5])
-        sim = LinearMPC.Simulation(mpc; x0=[0.0], r=[1.5], N=50)
+        mpc = DyadLinearMPC.MPC([0.778800783;;],[1.0;;];C=[0.44239843385;;])
+        DyadLinearMPC.set_objective!(mpc; Q=[1.0], R=[0.0], Rr=[0.1])
+        DyadLinearMPC.set_offset!(mpc; uo=[10.0],ho=[0.5])
+        sim = DyadLinearMPC.Simulation(mpc; x0=[0.0], r=[1.5], N=50)
         @test sim.us[end] ≈ 10.5
         @test sim.ys[end] ≈ 1.5
     end
 
     @testset "Unconstrained" begin
-        mpc = LinearMPC.MPC([0.77880078307;;],[1.0];C=[2.211992169;;],Ts=100)
-        LinearMPC.move_block!(mpc, [2, 2, 2, 24])
-        LinearMPC.set_objective!(mpc; Q=[1], Rr=[0], R=[0])
-        sim = LinearMPC.Simulation(mpc; x0=zeros(1), r=[5], N=20)
+        mpc = DyadLinearMPC.MPC([0.77880078307;;],[1.0];C=[2.211992169;;],Ts=100)
+        DyadLinearMPC.move_block!(mpc, [2, 2, 2, 24])
+        DyadLinearMPC.set_objective!(mpc; Q=[1], Rr=[0], R=[0])
+        sim = DyadLinearMPC.Simulation(mpc; x0=zeros(1), r=[5], N=20)
         @test sim.ys[end] ≈ 5.0
     end
 
     @testset "Game-theoretic MPC" begin
         F = [1 0.1; 0 1];
         G = [0 0;1 1];
-        mpc = LinearMPC.MPC(F,G;C=[1 0;0 1],Np=10);
+        mpc = DyadLinearMPC.MPC(F,G;C=[1 0;0 1],Np=10);
         set_objective!(mpc, [1]; Q=[1,0], Rr=1e3);
         set_objective!(mpc, [2]; Q=[0,1], Rr=1e3);
         set_bounds!(mpc;umin=-ones(2),umax=ones(2));
@@ -2593,13 +2593,13 @@ Random.seed!(1234)
         G = [0.0; 1.0]
         C = [1.0 0.0]
 
-        model = LinearMPC.Model(F, G; C, Gd=[0.5; -0.5])
+        model = DyadLinearMPC.Model(F, G; C, Gd=[0.5; -0.5])
         @test size(model.Gd) == (2, 1)
         @test size(model.Dd) == (1, 1)
         @test model.true_dynamics([1.0, 2.0], [3.0], [4.0]) ≈ F * [1.0, 2.0] + 3.0 .* G + model.Gd * [4.0]
         @test model.true_h([1.0, 2.0], [3.0], [4.0]) ≈ C * [1.0, 2.0]
 
-        cmodel = LinearMPC.Model([0.0 1.0; 0.0 0.0], [0.0; 1.0], 0.1; C)
+        cmodel = DyadLinearMPC.Model([0.0 1.0; 0.0 0.0], [0.0; 1.0], 0.1; C)
         @test cmodel.F ≈ [1.0 0.1; 0.0 1.0] atol=1e-8
         @test cmodel.G ≈ [0.005; 0.1] atol=1e-8
 
@@ -2608,7 +2608,7 @@ Random.seed!(1234)
         x0 = [1.0, -1.0]
         u0 = [0.5]
         d0 = [2.0]
-        A, B, Bd, Cn, D, Dd, foff, hoff = LinearMPC.linearize(f, h, x0, u0; d=d0)
+        A, B, Bd, Cn, D, Dd, foff, hoff = DyadLinearMPC.linearize(f, h, x0, u0; d=d0)
         @test A ≈ [1.0 2.0; 0.0 1.0]
         @test B ≈ [1.0; 2.0;;]
         @test Bd ≈ [3.0; -1.0;;]
@@ -2618,43 +2618,43 @@ Random.seed!(1234)
         @test foff ≈ zeros(2)
         @test hoff ≈ zeros(1)
 
-        nmodel = LinearMPC.Model(f, h, x0, u0; d=d0)
+        nmodel = DyadLinearMPC.Model(f, h, x0, u0; d=d0)
         @test nmodel.F ≈ A
         @test nmodel.G ≈ B
         @test nmodel.Gd ≈ Bd
         @test nmodel.C ≈ Cn
 
-        @test_throws ArgumentError LinearMPC.Model(F, G; C=ones(3, 3))
-        @test_throws ArgumentError LinearMPC.Model(f, (x, u, d) -> [x[1] + u[1]], x0, u0; d=d0)
+        @test_throws ArgumentError DyadLinearMPC.Model(F, G; C=ones(3, 3))
+        @test_throws ArgumentError DyadLinearMPC.Model(f, (x, u, d) -> [x[1] + u[1]], x0, u0; d=d0)
     end
 
     @testset "Reference and disturbance formatting helpers" begin
-        mpc = LinearMPC.MPC([1.0 1.0; 0.0 1.0], [0.0; 1.0]; C=[1.0 0.0; 0.0 1.0], Np=4, Nc=4)
+        mpc = DyadLinearMPC.MPC([1.0 1.0; 0.0 1.0], [0.0; 1.0]; C=[1.0 0.0; 0.0 1.0], Np=4, Nc=4)
         set_objective!(mpc; Q=[1.0, 1.0], R=[1.0])
 
         mpc.settings.reference_preview = true
-        @test LinearMPC.format_reference(mpc, [1.0, 2.0]) ≈ repeat([1.0, 2.0], mpc.Np)
-        @test LinearMPC.format_reference(mpc, [1.0 2.0 3.0 4.0 5.0; 10.0 20.0 30.0 40.0 50.0]) ≈
+        @test DyadLinearMPC.format_reference(mpc, [1.0, 2.0]) ≈ repeat([1.0, 2.0], mpc.Np)
+        @test DyadLinearMPC.format_reference(mpc, [1.0 2.0 3.0 4.0 5.0; 10.0 20.0 30.0 40.0 50.0]) ≈
               [1.0, 10.0, 2.0, 20.0, 3.0, 30.0, 4.0, 40.0]
-        @test LinearMPC.format_reference(mpc, [1.0 2.0; 10.0 20.0]) ≈
+        @test DyadLinearMPC.format_reference(mpc, [1.0 2.0; 10.0 20.0]) ≈
               [1.0, 10.0, 2.0, 20.0, 2.0, 20.0, 2.0, 20.0]
-        @test_throws ErrorException LinearMPC.format_reference(mpc, [1.0])
-        @test_throws ErrorException LinearMPC.format_reference(mpc, ones(1, 2))
-        @test_throws ErrorException LinearMPC.format_reference(mpc, 1.0)
+        @test_throws ErrorException DyadLinearMPC.format_reference(mpc, [1.0])
+        @test_throws ErrorException DyadLinearMPC.format_reference(mpc, ones(1, 2))
+        @test_throws ErrorException DyadLinearMPC.format_reference(mpc, 1.0)
 
         mpc.settings.reference_preview = false
-        @test LinearMPC.format_reference(mpc, [7.0 8.0 9.0; 1.0 2.0 3.0]) ≈ [7.0, 1.0]
+        @test DyadLinearMPC.format_reference(mpc, [7.0 8.0 9.0; 1.0 2.0 3.0]) ≈ [7.0, 1.0]
 
-        dmpc = LinearMPC.MPC([1.0;;], [1.0;;]; Gd=[1.0;;], C=[1.0;;], Np=4, Nc=4)
+        dmpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; Gd=[1.0;;], C=[1.0;;], Np=4, Nc=4)
         set_objective!(dmpc; Q=[1.0], R=[1.0])
         dmpc.settings.disturbance_preview = true
-        @test LinearMPC.format_disturbance(dmpc, [3.0]) ≈ [3.0, 3.0, 3.0, 3.0]
-        @test LinearMPC.format_disturbance(dmpc, [1.0 2.0]) ≈ [1.0, 2.0, 2.0, 2.0]
-        @test_throws ErrorException LinearMPC.format_disturbance(dmpc, [1.0, 2.0])
-        @test_throws ErrorException LinearMPC.format_disturbance(dmpc, ones(2, 2))
+        @test DyadLinearMPC.format_disturbance(dmpc, [3.0]) ≈ [3.0, 3.0, 3.0, 3.0]
+        @test DyadLinearMPC.format_disturbance(dmpc, [1.0 2.0]) ≈ [1.0, 2.0, 2.0, 2.0]
+        @test_throws ErrorException DyadLinearMPC.format_disturbance(dmpc, [1.0, 2.0])
+        @test_throws ErrorException DyadLinearMPC.format_disturbance(dmpc, ones(2, 2))
 
         dmpc.settings.disturbance_preview = false
-        @test LinearMPC.format_disturbance(dmpc, [7.0 8.0 9.0]) ≈ [7.0]
+        @test DyadLinearMPC.format_disturbance(dmpc, [7.0 8.0 9.0]) ≈ [7.0]
     end
 
     @testset "Recipe helper coverage" begin
@@ -2662,15 +2662,15 @@ Random.seed!(1234)
         try
             @testset "Simulation preview and recipe helpers" begin
                 rs = [1.0 2.0 3.0; 10.0 20.0 30.0]
-                @test LinearMPC.get_preview(rs, 1, 4) == [2.0 3.0 3.0 3.0; 20.0 30.0 30.0 30.0]
-                @test LinearMPC.get_reference_preview(rs, 1, 4) == LinearMPC.get_preview(rs, 1, 4)
-                @test LinearMPC.get_disturbance_preview(rs, 2, 3) == [2.0 3.0 3.0; 20.0 30.0 30.0]
+                @test DyadLinearMPC.get_preview(rs, 1, 4) == [2.0 3.0 3.0 3.0; 20.0 30.0 30.0 30.0]
+                @test DyadLinearMPC.get_reference_preview(rs, 1, 4) == DyadLinearMPC.get_preview(rs, 1, 4)
+                @test DyadLinearMPC.get_disturbance_preview(rs, 2, 3) == [2.0 3.0 3.0; 20.0 30.0 30.0]
 
-                mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=3)
+                mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=3)
                 set_objective!(mpc; Q=[1.0], R=[1.0])
                 set_bounds!(mpc; umin=[-1.0], umax=[1.0])
                 setup!(mpc)
-                sim = LinearMPC.Simulation(mpc; x0=[0.0], r=[0.0], N=3)
+                sim = DyadLinearMPC.Simulation(mpc; x0=[0.0], r=[0.0], N=3)
                 attrs = RecipesBase.KW(:xids => [1])
                 series = RecipesBase.apply_recipe(attrs, sim)
                 @test length(series) == 6
@@ -2680,31 +2680,31 @@ Random.seed!(1234)
             end
 
             @testset "Explicit MPC parameter labeling and plotting helpers" begin
-                mpc = LinearMPC.MPC([1.0 1.0; 0.0 1.0], [0.0; 1.0]; Gd=[1.0; 0.0], C=[1.0 0.0; 0.0 1.0], Dd=[0.0; 1.0], Np=3)
+                mpc = DyadLinearMPC.MPC([1.0 1.0; 0.0 1.0], [0.0; 1.0]; Gd=[1.0; 0.0], C=[1.0 0.0; 0.0 1.0], Dd=[0.0; 1.0], Np=3)
                 set_objective!(mpc; Q=[1.0, 1.0], R=[1.0], Rr=[0.5])
                 set_input_bounds!(mpc; umin=[-2.0], umax=[2.0])
                 set_labels!(mpc; x=[:x1, :x2], u=[:u1], y=[:y1, :y2], d=[:d1])
                 setup!(mpc)
 
-                @test LinearMPC.label2id(mpc, :x2) == (2, "x2")
-                @test LinearMPC.label2id(mpc, :y1r) == (3, "y1^r")
-                @test LinearMPC.label2id(mpc, :d1) == (5, "d1")
-                @test LinearMPC.label2id(mpc, :u1p) == (6, "u1^-")
-                @test LinearMPC.label2id(mpc, :unknown) == (nothing, "unknown")
-                @test LinearMPC.make_subscript("x12") == "x_12"
-                @test LinearMPC.make_subscript("state") == "state"
+                @test DyadLinearMPC.label2id(mpc, :x2) == (2, "x2")
+                @test DyadLinearMPC.label2id(mpc, :y1r) == (3, "y1^r")
+                @test DyadLinearMPC.label2id(mpc, :d1) == (5, "d1")
+                @test DyadLinearMPC.label2id(mpc, :u1p) == (6, "u1^-")
+                @test DyadLinearMPC.label2id(mpc, :unknown) == (nothing, "unknown")
+                @test DyadLinearMPC.make_subscript("x12") == "x_12"
+                @test DyadLinearMPC.make_subscript("state") == "state"
 
-                empc = ExplicitMPC(mpc; range=LinearMPC.ParameterRange(mpc), build_tree=false)
-                free_ids, fix_ids, lx, ly = LinearMPC.get_parameter_plot(empc, :y1r, :x1)
+                empc = ExplicitMPC(mpc; range=DyadLinearMPC.ParameterRange(mpc), build_tree=false)
+                free_ids, fix_ids, lx, ly = DyadLinearMPC.get_parameter_plot(empc, :y1r, :x1)
                 @test free_ids == [1, 3]
                 @test all(i ∉ free_ids for i in fix_ids)
                 @test lx == "x_1"
                 @test ly == "y_1^r"
-                @test_throws ArgumentError LinearMPC.get_parameter_plot(empc, :unknown, :x1)
-                @test_throws ArgumentError LinearMPC.get_parameter_plot(empc, :x1, :unknown)
+                @test_throws ArgumentError DyadLinearMPC.get_parameter_plot(empc, :unknown, :x1)
+                @test_throws ArgumentError DyadLinearMPC.get_parameter_plot(empc, :x1, :unknown)
 
-                hidden_zero = string(LinearMPC.fixed_parameters_string(empc, [1, 2], [0.0, 2.0]))
-                shown_zero = string(LinearMPC.fixed_parameters_string(empc, [1, 2], [0.0, 2.0]; show_zero=true))
+                hidden_zero = string(DyadLinearMPC.fixed_parameters_string(empc, [1, 2], [0.0, 2.0]))
+                shown_zero = string(DyadLinearMPC.fixed_parameters_string(empc, [1, 2], [0.0, 2.0]; show_zero=true))
                 @test !occursin("0.0", hidden_zero)
                 @test occursin("2.0", hidden_zero)
                 @test occursin("0.0", shown_zero)
@@ -2716,7 +2716,7 @@ Random.seed!(1234)
                 @test attrs[:CR_attr][2] == [1, 3]
                 @test_throws ArgumentError RecipesBase.apply_recipe(RecipesBase.KW(:parameters => [:x1], :control => :u1), empc)
 
-                cert = LinearMPC.certify(mpc; range=LinearMPC.ParameterRange(mpc))
+                cert = DyadLinearMPC.certify(mpc; range=DyadLinearMPC.ParameterRange(mpc))
                 cert_attrs = RecipesBase.KW(:parameters => [:x1, :y1r])
                 cert_series = RecipesBase.apply_recipe(cert_attrs, cert)
                 @test length(cert_series) == 1
@@ -2728,10 +2728,10 @@ Random.seed!(1234)
     end
 
     @testset "MPQP preprocessing helpers" begin
-        duplicate_groups = LinearMPC.find_duplicate_rows([1.0 2.0; 1.0000001 2.0; 3.0 4.0]; digits=5)
+        duplicate_groups = DyadLinearMPC.find_duplicate_rows([1.0 2.0; 1.0000001 2.0; 3.0 4.0]; digits=5)
         @test duplicate_groups == [[1, 2], [3]]
 
-        cdup = LinearMPC.DenseConstraints(
+        cdup = DyadLinearMPC.DenseConstraints(
             [1.0 0.0; 1.0 0.0],
             [10.0, 3.0, 5.0],
             [-10.0, -5.0, -1.0],
@@ -2741,12 +2741,12 @@ Random.seed!(1234)
             # One simple bound followed by two general constraints with duplicate rows.
             Cint[0, 1, 1],
         )
-        dedup = LinearMPC.remove_duplicate(cdup)
+        dedup = DyadLinearMPC.remove_duplicate(cdup)
         @test size(dedup.A, 1) == 1
         @test dedup.bu == [10.0, 3.0]
         @test dedup.bl == [-10.0, -1.0]
 
-        cfold = LinearMPC.DenseConstraints(
+        cfold = DyadLinearMPC.DenseConstraints(
             [2.0 0.0],
             [10.0, 4.0],
             [-10.0, 0.0],
@@ -2755,12 +2755,12 @@ Random.seed!(1234)
             BitVector([false, false]),
             Cint[0, 0],
         )
-        folded = LinearMPC.remove_redundant(cfold)
+        folded = DyadLinearMPC.remove_redundant(cfold)
         @test isempty(folded.A)
         @test folded.bu == [2.0]
         @test folded.bl == [0.0]
 
-        cpruned = LinearMPC.DenseConstraints(
+        cpruned = DyadLinearMPC.DenseConstraints(
             [-2.0 0.0; 0.0 0.0],
             [4.0, 1.0],
             [2.0, -1.0],
@@ -2769,69 +2769,69 @@ Random.seed!(1234)
             BitVector([false, false]),
             Cint[0, 0],
         )
-        pruned = LinearMPC.remove_redundant(cpruned)
+        pruned = DyadLinearMPC.remove_redundant(cpruned)
         @test size(pruned.A) == (1, 2)
         @test pruned.A[1, :] == [1.0, 0.0]
         @test pruned.bu == [-1.0]
         @test pruned.bl == [-2.0]
 
-        mpqp_soft = LinearMPC.MPQP(
+        mpqp_soft = DyadLinearMPC.MPQP(
             [1.0;;], [0.0], zeros(1, 0), zeros(1, 0),
             [1.0;;], [1.0], [-1.0], zeros(1, 0),
-            Cint[LinearMPC.DAQP.SOFT], Cint[0], Cint[],
+            Cint[DyadLinearMPC.DAQP.SOFT], Cint[0], Cint[],
             false, true, zeros(1), ones(1), -ones(1), zeros(1),
         )
-        singlesided_single = LinearMPC.make_singlesided(mpqp_soft; single_soft=true)
-        singlesided_multi = LinearMPC.make_singlesided(mpqp_soft; single_soft=false)
+        singlesided_single = DyadLinearMPC.make_singlesided(mpqp_soft; single_soft=true)
+        singlesided_multi = DyadLinearMPC.make_singlesided(mpqp_soft; single_soft=false)
         @test size(singlesided_single.H, 1) == 2
         @test size(singlesided_single.A, 2) == 2
         @test size(singlesided_multi.H, 1) == 2
         @test size(singlesided_multi.A, 2) == 2
 
-        mpqp_inf = LinearMPC.MPQP(
+        mpqp_inf = DyadLinearMPC.MPQP(
             [1.0;;], [0.0], zeros(1, 0), zeros(1, 0),
             [1.0;;], [1e21], [-1.0], zeros(1, 0),
             Cint[0], Cint[0], Cint[],
             false, true, zeros(1), ones(1), -ones(1), zeros(1),
         )
-        pruned_inf = LinearMPC.make_singlesided(mpqp_inf)
+        pruned_inf = DyadLinearMPC.make_singlesided(mpqp_inf)
         @test length(pruned_inf.b) == 1
         @test length(pruned_inf.bounds_table) == 1
     end
 
     @testset "Range, cost, and constraint helpers" begin
-        base = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
+        base = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
         set_objective!(base; Q=[1.0], R=[1.0])
         setup!(base)
-        pr = LinearMPC.ParameterRange(base)
+        pr = DyadLinearMPC.ParameterRange(base)
         @test isempty(pr.umin)
         @test isempty(pr.pmin)
 
-        parametric = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=3, Nc=2)
+        parametric = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=3, Nc=2)
         set_input_bounds!(parametric; umin=[-2.0], umax=[2.0])
         set_objective!(parametric; Q=[1.0], R=[1.0], Rr=[0.5], Eu=[1.0;;])
         setup!(parametric)
-        pr_param = LinearMPC.ParameterRange(parametric)
-        region = LinearMPC.range2region(pr_param)
+        pr_param = DyadLinearMPC.ParameterRange(parametric)
+        region = DyadLinearMPC.range2region(pr_param)
         @test pr_param.umin == [-2.0]
         @test length(pr_param.pmin) == parametric.np
         @test region.lb == [pr_param.xmin; pr_param.rmin; pr_param.dmin; pr_param.umin; pr_param.pmin]
         @test region.ub == [pr_param.xmax; pr_param.rmax; pr_param.dmax; pr_param.umax; pr_param.pmax]
 
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
         xs = [1.0 2.0]
         us = [0.0 1.0]
         rs = [0.0 1.0]
-        @test LinearMPC.evaluate_cost(mpc, xs, us, rs; Q=[2.0;;], R=[3.0;;], Rr=[4.0;;], S=[5.0;;]) ≈ 10.5
+        @test DyadLinearMPC.evaluate_cost(mpc, xs, us, rs; Q=[2.0;;], R=[3.0;;], Rr=[4.0;;], S=[5.0;;]) ≈ 10.5
 
-        c = LinearMPC.Constraint([1.0;;], [1.0 0.0], zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), [1.0], [-1.0], 1:1, false, false, 0)
-        @test LinearMPC.constraint_violation(c, [0.8, 0.0], [0.5]) ≈ 0.3
-        @test LinearMPC.constraint_violation(c, [0.8 0.2; 0.0 0.0], [0.5 0.0]) ≈ [0.3, 0.0]
-        @test_throws AssertionError LinearMPC.constraint_violation(c, [0.8 0.0], [0.5 0.0 0.1])
+        c = DyadLinearMPC.Constraint([1.0;;], [1.0 0.0], zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), zeros(0, 0), [1.0], [-1.0], 1:1, false, false, 0)
+        @test DyadLinearMPC.constraint_violation(c, [0.8, 0.0], [0.5]) ≈ 0.3
+        @test DyadLinearMPC.constraint_violation(c, [0.8 0.2; 0.0 0.0], [0.5 0.0]) ≈ [0.3, 0.0]
+        @test_throws AssertionError DyadLinearMPC.constraint_violation(c, [0.8 0.0], [0.5 0.0 0.1])
     end
 
     @testset "Setup warnings and early-return branches" begin
-        mpc = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
+        mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
         @test_logs (:error, r"# of controls are 1") set_input_bounds!(mpc; umin=[-1.0, -2.0], umax=[1.0, 2.0])
 
         n_constraints = length(mpc.constraints)
@@ -2841,9 +2841,9 @@ Random.seed!(1234)
 
         # The LQR terminal cost is centered on the operating point, not on the reference, so it is
         # available for tracking problems as well.
-        tracked = LinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
+        tracked = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
         set_objective!(tracked; Q=[1.0], R=[1.0])
-        @test_logs LinearMPC.set_terminal_cost!(tracked)
+        @test_logs DyadLinearMPC.set_terminal_cost!(tracked)
         @test !iszero(tracked.weights.Qfx)
 
         @test_logs (:warn, r"The setting \"does_not_exist\" does not exist") (:warn, r"The setting \"does_not_exist\" does not exist") settings!(tracked; does_not_exist=true)
@@ -2853,10 +2853,10 @@ Random.seed!(1234)
     @testset "Disturbance-control cross term Sd" begin
         # Generalized parameters and disturbance preview share the same stage map. In particular,
         # the last optimized control is held over the remainder of the prediction horizon.
-        stage_map_mpc = LinearMPC.MPC([1.0;;], [1.0;;]; Np=4, Nc=2)
-        constant_map = LinearMPC.stage_control_parameter_cross_term(
+        stage_map_mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; Np=4, Nc=2)
+        constant_map = DyadLinearMPC.stage_control_parameter_cross_term(
             stage_map_mpc, [1.0;;]; preview=false)
-        preview_map = LinearMPC.stage_control_parameter_cross_term(
+        preview_map = DyadLinearMPC.stage_control_parameter_cross_term(
             stage_map_mpc, [1.0;;]; preview=true)
         @test constant_map == reshape([1.0, 3.0], 2, 1)
         @test preview_map == [1.0 0.0 0.0 0.0; 0.0 1.0 1.0 1.0]
@@ -2865,8 +2865,8 @@ Random.seed!(1234)
         A = [1.0 0.1; 0.0 1.0]; B = [0.005; 0.1;;]; C = [1.0 0.0]
         Q = [1.0]; R = [0.1]; Np = 10
         function make_sd(; withd, Sd=zeros(0, 0), preview=false, Nc=Np)
-            model = withd ? LinearMPC.Model(A, B; Gd=B, C, Ts=0.1) : LinearMPC.Model(A, B; C, Ts=0.1)
-            mpc = LinearMPC.MPC(model; Np, Nc)
+            model = withd ? DyadLinearMPC.Model(A, B; Gd=B, C, Ts=0.1) : DyadLinearMPC.Model(A, B; C, Ts=0.1)
+            mpc = DyadLinearMPC.MPC(model; Np, Nc)
             settings!(mpc; reference_tracking=true, disturbance_preview=preview)
             set_objective!(mpc; Q, R, Sd)
             setup!(mpc)
@@ -2881,8 +2881,8 @@ Random.seed!(1234)
             for _ in 1:2
                 x = randn(rng, 2); r = randn(rng, 1)
                 d = varying ? randn(rng, 1, Np) : fill(randn(rng), 1, 1)
-                u_d = LinearMPC.compute_control(mpcd, x; r, d=preview ? d : vec(d[:, 1]))
-                u_0 = LinearMPC.compute_control(mpc0, x; r)
+                u_d = DyadLinearMPC.compute_control(mpcd, x; r, d=preview ? d : vec(d[:, 1]))
+                u_0 = DyadLinearMPC.compute_control(mpc0, x; r)
                 @test u_d ≈ u_0 - d[:, 1] atol = 1e-8
             end
         end

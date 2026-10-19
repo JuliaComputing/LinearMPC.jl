@@ -116,7 +116,7 @@ end
 
 Adds a group of deferred binary controls `ids`. The branch and bound first runs with the binary controls of
 all groups relaxed, and these are resolved afterwards with the other binary controls fixed at their values in
-the relaxed solution (see [`solve`](@ref LinearMPC.solve)). This reduces the number of nodes when the deferred
+the relaxed solution (see [`solve`](@ref DyadLinearMPC.solve)). This reduces the number of nodes when the deferred
 binary controls are numerous but have a small effect on the decisions of the other binary controls, for
 example bits that encode an integer setpoint.
 
@@ -167,8 +167,8 @@ difference: with the same quadratic term, any other linear term exceeds the obje
 and the relaxed objective would no longer be a lower bound.
 
 The relaxation requires a DAQP library in which an update of the senses updates the binary constraints of the
-branch and bound (darnstrom/daqp#208); [`solve`](@ref LinearMPC.solve) throws an error otherwise. The C code
-that [`codegen`](@ref LinearMPC.codegen) generates does not depend on it.
+branch and bound (darnstrom/daqp#208); [`solve`](@ref DyadLinearMPC.solve) throws an error otherwise. The C code
+that [`codegen`](@ref DyadLinearMPC.codegen) generates does not depend on it.
 
 The controls `ids` must be binary controls (see [`set_binary_controls!`](@ref)) and belong to no other group.
 Several controls require `weights` or `resolution = :enumerate`. [`clear_deferred_binary_controls!`](@ref)

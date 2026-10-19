@@ -1,5 +1,5 @@
 # Functions
 
 ```@autodocs
-Modules = [LinearMPC]
+Modules = [DyadLinearMPC]
 ```

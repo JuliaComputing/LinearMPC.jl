@@ -168,7 +168,7 @@ function _build_mpc_example(::Val{:invpend}, Np, Nc; settings=nothing, kwargs...
 
     Ts = 0.01
     xo, uo = zeros(4), zeros(1)
-    model = LinearMPC.Model(f, h, xo, uo, Ts)
+    model = DyadLinearMPC.Model(f, h, xo, uo, Ts)
 
     mpc = MPC(model; Nc, Np)
     set_objective!(mpc; Q = [1.2^2, 1], R = [0.0], Rr = [1.0])
@@ -656,9 +656,9 @@ function _build_mpc_example(::Val{:crazyflie}, Np, Nc; settings=nothing, kwargs.
 
     # Start setting up MPC
     Ts = get(kwargs,:Ts,1/500)
-    model = LinearMPC.Model(cf_dynamics,(x,u,d)->x,x0,u0,Ts)
+    model = DyadLinearMPC.Model(cf_dynamics,(x,u,d)->x,x0,u0,Ts)
 
-    mpc = LinearMPC.MPC(model;Np,Nc);
+    mpc = DyadLinearMPC.MPC(model;Np,Nc);
     mpc.settings.reference_tracking = false;
 
     Q =[156.25, 156.25, 400,  # position
@@ -734,8 +734,8 @@ function _build_mpc_example(::Val{:rocket}, Np, Nc; settings=nothing, kwargs...)
     x0 = zeros(6)
     u0 = [(mass * gravity) / main_engine_thrust, 0, 0]
 
-    model = LinearMPC.Model(rocket_dynamics,(x,u,d)->x,x0,u0,Ts)
-    mpc = LinearMPC.MPC(model;Np,Nc);
+    model = DyadLinearMPC.Model(rocket_dynamics,(x,u,d)->x,x0,u0,Ts)
+    mpc = DyadLinearMPC.MPC(model;Np,Nc);
     set_objective!(mpc;Q=[2,1,5,5,1,5],R=0.1*ones(3), Rr=0);
     set_bounds!(mpc,umin = [0.0, -1.0,-1.0], umax=ones(3));
 

@@ -531,7 +531,7 @@ component of `w`. Constraints added with `add_constraint!(mpc; ..., tighten = fa
 # Example
 ```julia
 F, G = [1 0.1; 0 1], [0.005; 0.1;;]
-mpc = LinearMPC.MPC(F, G; Np=25, C=[1 0;])
+mpc = DyadLinearMPC.MPC(F, G; Np=25, C=[1 0;])
 set_prestabilizing_feedback!(mpc)
 set_bounds!(mpc; umin=[-0.2], umax=[0.2], ymin=[-0.5], ymax=[0.5])
 set_disturbance!(mpc, -0.005, 0.005)               # |wᵢ| ≤ 0.005 for each state variable
@@ -562,7 +562,7 @@ for every state in that box (see [Robust MPC](@ref man_robust)).
 
 # Example
 ```julia
-mpc = LinearMPC.MPC([1 0.1; 0 1], [0.005; 0.1;;]; Np=25, C=[1 0;])
+mpc = DyadLinearMPC.MPC([1 0.1; 0 1], [0.005; 0.1;;]; Np=25, C=[1 0;])
 set_prestabilizing_feedback!(mpc)
 set_bounds!(mpc; umin=[-0.2], umax=[0.2], ymin=[-0.5], ymax=[0.5])
 set_x0_uncertainty!(mpc, [0.02, 0.02])
@@ -778,7 +778,7 @@ function set_operating_point!(mpc;xo=nothing,uo=nothing,relinearize=true)
 
     if !isnothing(xo) || !isnothing(uo)
         (; wmin, wmax, Bw) = mpc.model
-        mpc.model = LinearMPC.Model(mpc.model.true_dynamics,mpc.model.true_h,
+        mpc.model = DyadLinearMPC.Model(mpc.model.true_dynamics,mpc.model.true_h,
                                     mpc.model.xo,mpc.model.uo)
         set_disturbance!(mpc, wmin, wmax; Bw)
     end

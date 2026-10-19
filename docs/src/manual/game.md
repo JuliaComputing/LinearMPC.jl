@@ -1,6 +1,6 @@
 # [Game-Theoretic MPC](@id man_robust)
 
-**LinearMPC.jl** can also solve general Nash equilibria to game-theoretic linear MPC problems.
+**DyadLinearMPC.jl** can also solve general Nash equilibria to game-theoretic linear MPC problems.
 Specifically it can handle objective of the form 
 
 ```math
@@ -54,9 +54,9 @@ This problem can be setup with
 
 ```@tabsetup game_mpc
 # julia
-using LinearMPC
+using DyadLinearMPC
 F, G = [1 0.1; 0 1], [0 0; 1 1]
-mpc = LinearMPC.MPC(F, G; C=[1 0; 0 1], Np=10)
+mpc = DyadLinearMPC.MPC(F, G; C=[1 0; 0 1], Np=10)
 
 set_objective!(mpc, [1]; Q=[1, 0], Rr=1e3)
 set_objective!(mpc, [2]; Q=[0, 1], Rr=1e3)
@@ -101,7 +101,7 @@ We can also compare the game-theoretic closed-loop behaviour with a cooperative 
 ```@tabexample game_mpc
 # julia
 F, G = [1 0.1; 0 1], [0 0; 1 1]
-mpc_centralized = LinearMPC.MPC(F, G; C=[1 0; 0 1], Np=10)
+mpc_centralized = DyadLinearMPC.MPC(F, G; C=[1 0; 0 1], Np=10)
 set_objective!(mpc_centralized; Q=[1, 1], Rr=1e3)
 set_bounds!(mpc_centralized; umin=-ones(2), umax=ones(2))
 

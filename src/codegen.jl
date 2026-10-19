@@ -30,13 +30,13 @@ Generates C code for `mpc` in the directory `dir`. The control is computed by th
 * `warm_start`: start the solve of a QP from the working set of the previous call (problems without
   binary controls)
 * `bnb_warm_start`: warm start of the branch and bound of problems with binary controls from the
-  solution of the previous call, as in [`solve`](@ref LinearMPC.solve) with the setting
+  solution of the previous call, as in [`solve`](@ref DyadLinearMPC.solve) with the setting
   `bnb_warm_start`. The generated header then defines `DAQP_BNB_WARMSTART`, the variable
   `bnb_candidate_used` tells whether the latest call of `mpc_compute_control` returned the
   candidate, and `mpc_reset_bnb_warm_start()` discards the stored solution. It has no effect
   without binary controls or with a prestabilizing feedback.
 * `bnb_deferred`: the groups of deferred binary controls of `mpc` (see
-  [`defer_binary_controls!`](@ref)), resolved as in [`solve`](@ref LinearMPC.solve), also combined
+  [`defer_binary_controls!`](@ref)), resolved as in [`solve`](@ref DyadLinearMPC.solve), also combined
   with `bnb_warm_start`. The generated header then defines `DAQP_BNB_DEFERRED`, the variable
   `bnb_source` tells the source of the solution of the latest call of `mpc_compute_control`
   (`MPC_BNB_SOURCE_SEARCH`, `MPC_BNB_SOURCE_CANDIDATE` or `MPC_BNB_SOURCE_DEFERRED`), the variable
@@ -75,7 +75,7 @@ function codegen(mpc::MPC;fname="mpc_workspace", dir="codegen", opt_settings=not
     # Append preamble at the start of H file
     mv(joinpath(dir,fname*".h"),joinpath(dir,"mpc_old.h"))
     fold = open(joinpath(dir,"mpc_old.h"),"r")
-    fpre = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/preamble.c"), "r");
+    fpre = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/preamble.c"), "r");
     s = read(fold, String)
     pre = read(fpre, String)
     fnew = open(joinpath(dir,fname*".h"),"w")
@@ -103,7 +103,7 @@ function codegen(mpc::ExplicitMPC;fname="empc", dir="codegen", opt_settings=noth
     # HEADER
     fh = open(joinpath(dir,"mpc_compute_control.h"), "w")
 
-    fpre = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/preamble.c"), "r");
+    fpre = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/preamble.c"), "r");
     write(fh, read(fpre))
     close(fpre)
 
@@ -138,7 +138,7 @@ function codegen(mpc::ExplicitMPC;fname="empc", dir="codegen", opt_settings=noth
     end
 
     # Update parameter
-    fmpc_para = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/mpc_update_parameter.c"), "r");
+    fmpc_para = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_update_parameter.c"), "r");
     write(fsrc, read(fmpc_para))
     close(fmpc_para)
 
@@ -251,15 +251,15 @@ function render_mpc_workspace(mpc;fname="mpc_workspace",dir="",fmode="w", float_
     (bnb_warm_start || bnb_deferred) && render_bnb_warm_start_data(mpc,mpLDP,fh,fsrc)
     bnb_deferred && render_bnb_deferred_data(mpc,mpLDP,fh,fsrc)
 
-    fmpc_h = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/mpc_update_qp.h"), "r");
+    fmpc_h = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_update_qp.h"), "r");
     write(fh, read(fmpc_h))
     close(fmpc_h)
 
     @printf(fsrc, "#include \"%s.h\"\n",fname);
-    fmpc_para = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/mpc_update_parameter.c"), "r");
+    fmpc_para = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_update_parameter.c"), "r");
     write(fsrc, read(fmpc_para))
     close(fmpc_para)
-    fmpc_src = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/mpc_update_qp.c"), "r");
+    fmpc_src = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_update_qp.c"), "r");
     qp_src = read(fmpc_src, String)
     close(fmpc_src)
     if bnb_warm_start || bnb_deferred
@@ -273,10 +273,10 @@ function render_mpc_workspace(mpc;fname="mpc_workspace",dir="",fmode="w", float_
     write(fsrc, qp_src)
     for (enabled,template) in ((bnb_warm_start,"mpc_bnb_warm_start"),(bnb_deferred,"mpc_bnb_deferred"))
         enabled || continue
-        fbnb_h = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/$template.h"), "r");
+        fbnb_h = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/$template.h"), "r");
         write(fh, read(fbnb_h))
         close(fbnb_h)
-        fbnb_src = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/$template.c"), "r");
+        fbnb_src = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/$template.c"), "r");
         write(fsrc, read(fbnb_src))
         close(fbnb_src)
     end

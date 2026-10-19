@@ -1,5 +1,5 @@
 # [Constraints](@id man_constraints)
-The constraints that are supported in **LinearMPC.jl** are of the form 
+The constraints that are supported in **DyadLinearMPC.jl** are of the form 
 ```math
 \underline{b} \leq A_x x_k + A_u u_k \leq \overline{b}.
 ```

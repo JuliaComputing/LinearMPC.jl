@@ -1,5 +1,5 @@
 # [Models](@id man_model)
-As its name suggests **Model** Predictive Control uses a predictive model when computing a control action. The models used internally in **LinearMPC.jl** are **discrete-time state-space models** of the form 
+As its name suggests **Model** Predictive Control uses a predictive model when computing a control action. The models used internally in **DyadLinearMPC.jl** are **discrete-time state-space models** of the form 
 ```math
 x_{k+1} = F x_k + G u_k
 ```
@@ -7,7 +7,7 @@ where the state at time step $k+1$ is a linear combinations of the current state
 
 ```@tab
 # julia
-mpc = LinearMPC.MPC(F,G)
+mpc = DyadLinearMPC.MPC(F,G)
 # python
 from lmpc import MPC
 mpc = MPC(F, G)
@@ -16,8 +16,8 @@ mpc = MPC(F, G)
 One can also create a `Model` struct first, and then create the MPC controller, with 
 
 ```julia
-model = LinearMPC.Model(F,G)
-mpc = LinearMPC.MPC(model)
+model = DyadLinearMPC.Model(F,G)
+mpc = DyadLinearMPC.MPC(model)
 ```
 
 ## Continuous-time models 
@@ -31,7 +31,7 @@ One alternative to deal with this is to [discretize](https://en.wikipedia.org/wi
 
 ```@tab
 # julia
-mpc = LinearMPC.MPC(A,B,Ts)
+mpc = DyadLinearMPC.MPC(A,B,Ts)
 # python
 mpc = MPC(A, B, Ts)
 ```
@@ -39,8 +39,8 @@ mpc = MPC(A, B, Ts)
 where `Ts` is the _sample time_, which  and determines how much one time step is. (For example, $T_s = 0.1$ corresponds to 10 time steps being 1 second.) As for discrete-time state spaces models, one can first create a `Model` struct, and create a MPC controller based on this model as follows: 
 
 ```julia
-model = LinearMPC.Model(A,B,Ts)
-mpc = LinearMPC.MPC(model)
+model = DyadLinearMPC.Model(A,B,Ts)
+mpc = DyadLinearMPC.MPC(model)
 ```
 
 
@@ -62,15 +62,15 @@ an MPC controller that uses this model can be created with
 
 ```@tab
 # julia
-mpc = LinearMPC.MPC(F,G;C)
+mpc = DyadLinearMPC.MPC(F,G;C)
 # python
 mpc = MPC(F, G, C=C)
 ```
 
 or by first creating a `Model` as 
 ```julia
-model = LinearMPC.Model(F,G;C)
-mpc = LinearMPC.MPC(model)
+model = DyadLinearMPC.Model(F,G;C)
+mpc = DyadLinearMPC.MPC(model)
 ```
 
 Similarly, an MPC controller of the continuous-time system
@@ -81,15 +81,15 @@ is setup with
 
 ```@tab
 # julia
-mpc = LinearMPC.MPC(A,B,Ts;C)
+mpc = DyadLinearMPC.MPC(A,B,Ts;C)
 # python
 mpc = MPC(A, B, Ts, C=C)
 ```
 
 or 
 ```julia
-model = LinearMPC.Model(A,B,Ts;C)
-mpc = LinearMPC.MPC(model)
+model = DyadLinearMPC.Model(A,B,Ts;C)
+mpc = DyadLinearMPC.MPC(model)
 ```
 
 !!! note "Default value"
@@ -103,7 +103,7 @@ where the matrices $G_d$ and $D_d$ determines the linear combination for the dyn
 
 ```@tab
 # julia
-mpc = LinearMPC.MPC(F,G;Gd,C,Dd)
+mpc = DyadLinearMPC.MPC(F,G;Gd,C,Dd)
 # python
 mpc = MPC(F, G, Gd=Gd, C=C, Dd=Dd)
 ```
@@ -116,7 +116,7 @@ can be used with
 
 ```@tab
 # julia
-mpc = LinearMPC.MPC(A,B,Ts;Bd,C,Dd)
+mpc = DyadLinearMPC.MPC(A,B,Ts;Bd,C,Dd)
 # python
 mpc = MPC(A, B, Ts, Bd=Bd, C=C, Dd=Dd)
 ```
@@ -130,8 +130,8 @@ x_{k+1} = f(x_k,u_k,d_k), \quad y_k = h(x_k,u_k,d_k),
 ```
 an MPC controller with a linearized model around an operating point $x_o$, $u_o$ and $d_o$ can be created with 
 ```julia
-model = LinearMPC.Model(f,h,x_o,u_o; d=d_o)
-mpc = LinearMPC.MPC(model)
+model = DyadLinearMPC.Model(f,h,x_o,u_o; d=d_o)
+mpc = DyadLinearMPC.MPC(model)
 ```
 
 Similary, for a nonlinear _continuous-time_ state-space model of the form
@@ -141,8 +141,8 @@ Similary, for a nonlinear _continuous-time_ state-space model of the form
 ```
 an MPC controller with a linearized model around an operating point $x_o$, $u_o$ and $d_o$ can be created with 
 ```julia
-model = LinearMPC.Model(f,h,x_o,u_o,Ts; d=d_o)
-mpc = LinearMPC.MPC(model)
+model = DyadLinearMPC.Model(f,h,x_o,u_o,Ts; d=d_o)
+mpc = DyadLinearMPC.MPC(model)
 ```
 
 ## Using ControlSystems.jl
@@ -154,7 +154,7 @@ mpc = LinearMPC.MPC(model)
 
 For a system `sys` created with ControlSystems.jl, an MPC controller can simply created with  
 ```julia
-mpc = LinearMPC.MPC(sys)
+mpc = DyadLinearMPC.MPC(sys)
 ```
 For example, given the transfer function  
 ```math
@@ -163,5 +163,5 @@ For example, given the transfer function
 and MPC controller using this transfer function as its model can be created with  
 ```julia
 sys = tf([1.0],[1,2,1])
-mpc = LinearMPC.MPC(sys)
+mpc = DyadLinearMPC.MPC(sys)
 ```

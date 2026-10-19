@@ -1,5 +1,5 @@
 # [Simple Example](@id man_simple)
-A simplified form of the MPC problem that **LinearMPC.jl** solves is
+A simplified form of the MPC problem that **DyadLinearMPC.jl** solves is
 
 ```math
 \begin{aligned}
@@ -50,14 +50,14 @@ We can create an MPC controller for the corresponding problem with the following
 
 ```@tab
 # julia
-using LinearMPC
+using DyadLinearMPC
 
 # dynamics
 F = [1 0.5; 0 1]
 G = [0;1]
 
 # create mpc struct
-mpc  = LinearMPC.MPC(F,G; C=[1 0; 1  1])
+mpc  = DyadLinearMPC.MPC(F,G; C=[1 0; 1  1])
 
 # objective
 set_objective!(mpc, Q=[1,1], R=0, Rr = [1])
@@ -111,7 +111,7 @@ Still, it is hard to draw any conclusion about wheter the controller is doing wh
 ```@tab
 # julia
 # simulate the system
-sim = LinearMPC.Simulation(mpc;x0=[0,0],r=[1,0],N=10)
+sim = DyadLinearMPC.Simulation(mpc;x0=[0,0],r=[1,0],N=10)
 # python
 from lmpc import Simulation
 
@@ -141,7 +141,7 @@ We can see that both of the output are not following the references very well. T
 ```@tab
 # julia
 set_objective!(mpc, Q=[1000, 1], Rr = [1])
-sim = LinearMPC.Simulation(mpc;x0=[0,0],r=[1,0],N=10)
+sim = DyadLinearMPC.Simulation(mpc;x0=[0,0],r=[1,0],N=10)
 plot(sim)
 # python
 mpc.set_objective(Q=[1000, 1], Rr=[1])
@@ -158,11 +158,11 @@ plt.show()
 This gives the desired effect, since now $y_1$ is able to follow its reference. The output $y_2$ still don't reach its reference value of 0 due to the constraint $-1\leq 2 x_1 - x_2 \leq 2$. With the controller doing what we want, it is ready to be deployed in practice! 
 
 ### Code generation
-Most real-time controllers run on embedded hardware, which often require the controller to be implemented in a low-level programmign language like C. However, implementing an MPC controller in C from scratch is a very time consuming endeveaur. To simplify the process, **LinearMPC.jl** can generate C-code for MPC controllers that have been designed and tested in Julia, which enables the MPC controller to easibly be applied on embedded systems. To generate such C code in a directory `code_dir`, we can run the following code
+Most real-time controllers run on embedded hardware, which often require the controller to be implemented in a low-level programmign language like C. However, implementing an MPC controller in C from scratch is a very time consuming endeveaur. To simplify the process, **DyadLinearMPC.jl** can generate C-code for MPC controllers that have been designed and tested in Julia, which enables the MPC controller to easibly be applied on embedded systems. To generate such C code in a directory `code_dir`, we can run the following code
 
 ```@tab
 # julia
-LinearMPC.codegen(mpc; dir="code_dir", fname="test_mpc")
+DyadLinearMPC.codegen(mpc; dir="code_dir", fname="test_mpc")
 # python
 mpc.codegen(fname="test_mpc", dir="code_dir")
 ```

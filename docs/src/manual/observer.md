@@ -2,7 +2,7 @@
 
 Model predictive control requires _all_ the state of the system to be known. All states are, however, rarely measured in practice. Therefore, a _state observer_ that estimates the current states based on measurements is needed. The goal of a state observer is therefore to generate an estimate $\hat{x}$ of the true state $x$, based on measurements $y$ and applied controls $u$ such that $\hat{x} \approx x$
 
-**LinearMPC.jl** provides a simple steady-state Kalman filter for estimating the states. The steady-state Kalman filter assumes the following model of the dynamical system
+**DyadLinearMPC.jl** provides a simple steady-state Kalman filter for estimating the states. The steady-state Kalman filter assumes the following model of the dynamical system
 ```math
 x_{k+1} = F x_k + G u_k + w_k, \qquad y_k = C x_k + e_k
 ```
@@ -29,7 +29,7 @@ mpc.set_state_observer(Q=Q, R=R)
 where `Q` and `R` are covariance matrices for the process noise and measurement noise, respectively. These are used as tuning variables, where the relative size of the elements in `Q` and `R` determines if the prediction or the measurements should be trusted more. By default, `set_state_observer!` uses $F$, $G$, and $C$ from the MPC structure. It is possible to override this by passing the optional arguments `F`,`G`,`C` to `set_state_observer!`.
 
 ## Offset-free tracking
-For offset-free tracking[^Pannocchia15], **LinearMPC.jl** also provides
+For offset-free tracking[^Pannocchia15], **DyadLinearMPC.jl** also provides
 
 [^Pannocchia15]: Pannocchia, Gabriele. "Offset-free tracking MPC: A tutorial review and comparison of different formulations." _European control conference (ECC)_ (2015)
 

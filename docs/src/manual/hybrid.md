@@ -1,10 +1,10 @@
 # [Hybrid MPC](@id man_hybridmpc)
 
-**LinearMPC.jl** can be used to control hybrid systems, where controls and states might take both continuous and binary values.
+**DyadLinearMPC.jl** can be used to control hybrid systems, where controls and states might take both continuous and binary values.
 
 Binary controls are either equal to its upper or lower bound. For example, if the lower and upper bounds for the control $i$ is $\underline{u}_i$ and $\overline{u}_i$, making $u_i$ binary means that $u_i \in \{\underline{u}_i, \overline{u}_i\}$ rather than $\underline{u}_i \leq u_i \leq \overline{u}_i$. Controls can be made binary with the function `set_binary_controls!`, which is exemplified below.
 
-More generally, **LinearMPC.jl** allows any constraint to be defined as `binary`. A constraint can be enforced to be binary by settings the setting the optional argument `binary` to  `true` in the functions `add_constraint!`.
+More generally, **DyadLinearMPC.jl** allows any constraint to be defined as `binary`. A constraint can be enforced to be binary by settings the setting the optional argument `binary` to  `true` in the functions `add_constraint!`.
 
 ## Illustrative example
 As an illustrative example, we consider the control of the attitude of a satellite[^Axehill04]. The actuators consist of one reaction wheel and two thrusters. The thruster takes on binary values (they are either 'on' or 'off')
@@ -32,15 +32,15 @@ where $x_1$ i the attitude of the satellite.
 
 The thrusters give rise to the binary controls $u_2 \in \{0,1\}$ and $u_3 \in \{-1,0\}$.
 
-An MPC controller that controls the attitude of the satellite can be set up with **LinearMPC.jl** as follows: 
+An MPC controller that controls the attitude of the satellite can be set up with **DyadLinearMPC.jl** as follows: 
 
 ```@tabsetup hybrid_mpc
 # julia
-using LinearMPC
+using DyadLinearMPC
 # Setup dynamics + horizon
 A = [0.0 1 0; 0 0 0; 0 0 0]
 B = [0 0 0; 2.5 1 1; -10 0 0]
-mpc = LinearMPC.MPC(A, B, 0.1; Np=20)
+mpc = DyadLinearMPC.MPC(A, B, 0.1; Np=20)
 
 # Setup the binary controls u_2 ∈ {0,1} and u_3 ∈ {-1,0}
 set_binary_controls!(mpc, [2, 3])
@@ -81,7 +81,7 @@ x0, N = zeros(3), 20
 rs = [zeros(1, 5) 0.5*ones(1, N-5);
       zeros(2, N)]
 dynamics = (x, u, d) -> mpc.model.F*x + mpc.model.G*u
-sim = LinearMPC.Simulation(dynamics, mpc; x0, N, r=rs)
+sim = DyadLinearMPC.Simulation(dynamics, mpc; x0, N, r=rs)
 # python
 from lmpc import Simulation
 
@@ -113,7 +113,7 @@ In a closed loop, the solution of the previous time step, shifted by one step, i
 mpc.settings.bnb_warm_start = true
 ```
 
-Each binary control takes the value of the previous solution one step later (rounded to the nearest bound), and the QP with the binary controls fixed at these values gives the continuous controls of the candidate. The branch and bound then only accepts solutions that improve on the objective of the candidate by more than the suboptimality tolerances of DAQP (`abs_subopt`, `rel_subopt`), as if it had found the candidate itself, which allows it to discard more nodes. If it finds no such solution, or if it reaches a time limit (`DAQP.settings(mpc.opt_model, Dict(:time_limit => t))`), the candidate is returned. The field `source` of the information returned by `LinearMPC.solve` tells whether the solution comes from the branch and bound (`:search`) or is the candidate (`:candidate`). The stored solution is discarded with `reset_bnb_warm_start!`, by `setup!` and at the start of a `Simulation`.
+Each binary control takes the value of the previous solution one step later (rounded to the nearest bound), and the QP with the binary controls fixed at these values gives the continuous controls of the candidate. The branch and bound then only accepts solutions that improve on the objective of the candidate by more than the suboptimality tolerances of DAQP (`abs_subopt`, `rel_subopt`), as if it had found the candidate itself, which allows it to discard more nodes. If it finds no such solution, or if it reaches a time limit (`DAQP.settings(mpc.opt_model, Dict(:time_limit => t))`), the candidate is returned. The field `source` of the information returned by `DyadLinearMPC.solve` tells whether the solution comes from the branch and bound (`:search`) or is the candidate (`:candidate`). The stored solution is discarded with `reset_bnb_warm_start!`, by `setup!` and at the start of a `Simulation`.
 
 The generated C code contains the same warm start if the setting is enabled when `codegen` is called (or with the keyword argument `codegen(mpc; bnb_warm_start=true)`). The generated header then defines `DAQP_BNB_WARMSTART`, `mpc_compute_control` stores the solution for the next call, the variable `bnb_candidate_used` tells whether the latest call returned the candidate, and the function `mpc_reset_bnb_warm_start()` discards the stored solution. The time limit of DAQP does not apply to the generated code.
 
@@ -126,13 +126,13 @@ defer_binary_controls!(mpc, [6])                          # A single binary cont
 mpc.settings.deferred_tol = 0.1
 ```
 
-A group with `weights` is resolved by the encodable integers just below and above the relaxed value at each binary step, a single control by the sum-up rounding of its relaxed values over its binary steps and the sequences with one step more and one step fewer on, and a group with `resolution = :enumerate` by all combinations of its binary decision variables. The combinations of the candidates of all groups (at most the setting `deferred_max_combinations`) are QPs with all binary controls fixed. The best one is returned if its objective exceeds that of the relaxed search, which is a lower bound of the optimal objective, by at most the setting `deferred_tol`. Otherwise, the branch and bound runs without relaxation with the best one as cutoff. The returned solution is therefore within `deferred_tol` of the optimum. The field `source` of the information returned by `LinearMPC.solve` is `:deferred` for a solution with resolved deferred binary controls, and `clear_deferred_binary_controls!` removes all groups.
+A group with `weights` is resolved by the encodable integers just below and above the relaxed value at each binary step, a single control by the sum-up rounding of its relaxed values over its binary steps and the sequences with one step more and one step fewer on, and a group with `resolution = :enumerate` by all combinations of its binary decision variables. The combinations of the candidates of all groups (at most the setting `deferred_max_combinations`) are QPs with all binary controls fixed. The best one is returned if its objective exceeds that of the relaxed search, which is a lower bound of the optimal objective, by at most the setting `deferred_tol`. Otherwise, the branch and bound runs without relaxation with the best one as cutoff. The returned solution is therefore within `deferred_tol` of the optimum. The field `source` of the information returned by `DyadLinearMPC.solve` is `:deferred` for a solution with resolved deferred binary controls, and `clear_deferred_binary_controls!` removes all groups.
 
-The relaxation requires a DAQP library in which an update of the senses updates the binary constraints of the branch and bound ([darnstrom/daqp#208](https://github.com/darnstrom/daqp/pull/208)); otherwise, `LinearMPC.solve` throws an error. The generated C code resolves the groups in the same way, also combined with the warm start, and does not depend on this: the header then defines `DAQP_BNB_DEFERRED`, the variable `bnb_source` tells the source of the latest solution, `bnb_deferred_tol` holds the tolerance, and `mpc_reset_bnb_deferred()` resets the source and the stored solution of the warm start.
+The relaxation requires a DAQP library in which an update of the senses updates the binary constraints of the branch and bound ([darnstrom/daqp#208](https://github.com/darnstrom/daqp/pull/208)); otherwise, `DyadLinearMPC.solve` throws an error. The generated C code resolves the groups in the same way, also combined with the warm start, and does not depend on this: the header then defines `DAQP_BNB_DEFERRED`, the variable `bnb_source` tells the source of the latest solution, `bnb_deferred_tol` holds the tolerance, and `mpc_reset_bnb_deferred()` resets the source and the stored solution of the warm start.
 
 ## Mixed logical dynamical systems
 
-In **LinearMPC.jl**, MLD models can be built with an augmented
+In **DyadLinearMPC.jl**, MLD models can be built with an augmented
 input vector
 
 ```math
@@ -159,9 +159,9 @@ The helper functions available in `setup.jl` are:
 ### Indicator + product
 
 ```julia
-using LinearMPC
+using DyadLinearMPC
 
-mpc = LinearMPC.MPC([-0.8;;], [1.0 0.0 1.6];
+mpc = DyadLinearMPC.MPC([-0.8;;], [1.0 0.0 1.6];
                     C=[1.0;;], Np=1, Nc=1)
 set_input_bounds!(mpc; umin=[-1.0, 0.0, -10.0], umax=[1.0, 1.0, 10.0])
 set_binary_controls!(mpc, [2])  # δ
@@ -177,12 +177,12 @@ add_product_constraint!(mpc, 3, 2; Ax=[1.0;;], Au=zeros(1, 3), m=-10.0, M=10.0)
 ### If-then-else branches
 
 ```julia
-using LinearMPC, LinearAlgebra
+using DyadLinearMPC, LinearAlgebra
 
 alpha = pi / 3
 c, s = cos(alpha), sin(alpha)
 
-mpc = LinearMPC.MPC(zeros(2, 2), [0.0 1.0 0.0; 0.0 0.0 1.0];
+mpc = DyadLinearMPC.MPC(zeros(2, 2), [0.0 1.0 0.0; 0.0 0.0 1.0];
                     C=Matrix{Float64}(I, 2, 2), Np=1, Nc=1)
 set_input_bounds!(mpc; umin=[0.0, -6.0, -6.0], umax=[1.0, 6.0, 6.0])
 set_binary_controls!(mpc, [1])  # sign selector

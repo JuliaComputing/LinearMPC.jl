@@ -132,14 +132,14 @@ function render_observer_codegen(kf::KalmanFilter,fh,fsrc)
     @printf(fh, "extern c_float MPC_PLANT_DYNAMICS[%d];\n",nx*(1+nx+nu+nd));
     @printf(fh, "extern c_float MPC_MEASUREMENT_FUNCTION[%d];\n",ny*(1+nx+nd));
     @printf(fh, "extern c_float K_TRANSPOSE_OBSERVER[%d];\n",ny*nx);
-    fmpc_h = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/mpc_observer.h"), "r");
+    fmpc_h = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_observer.h"), "r");
     write(fh, read(fmpc_h))
     close(fmpc_h)
 
     write_float_array(fsrc,[kf.f_offset kf.F kf.G kf.Gd]'[:],"MPC_PLANT_DYNAMICS");
     write_float_array(fsrc,[kf.h_offset kf.C kf.Dd]'[:],"MPC_MEASUREMENT_FUNCTION");
     write_float_array(fsrc,kf.K[:],"K_TRANSPOSE_OBSERVER");
-    fmpc_src = open(joinpath(dirname(pathof(LinearMPC)),"../codegen/mpc_observer.c"), "r");
+    fmpc_src = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_observer.c"), "r");
     write(fsrc, read(fmpc_src))
     close(fmpc_src)
 end

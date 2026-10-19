@@ -16,7 +16,7 @@ uv run python run_all.py \
 ```
 
 
-In this benchmark, **LinearMPC.jl** (denoted `lmpc` in the plots since its sister Python package [lmpc](https://github.com/darnstrom/lmpc) is used) produces the fastest code across the considered horizons. Moreover, **LinearMPC.jl** has the smallest memory footprint. Note, however, that the dense formulation that **LinearMPC.jl** will sooner or later exceed that of the sparse solvers, as can been seen by the slope memory footprint.
+In this benchmark, **DyadLinearMPC.jl** (denoted `lmpc` in the plots since its sister Python package [lmpc](https://github.com/darnstrom/lmpc) is used) produces the fastest code across the considered horizons. Moreover, **DyadLinearMPC.jl** has the smallest memory footprint. Note, however, that the dense formulation that **DyadLinearMPC.jl** will sooner or later exceed that of the sparse solvers, as can been seen by the slope memory footprint.
 
 ```@raw html
 <div style="text-align: center;">

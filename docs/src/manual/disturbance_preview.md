@@ -45,14 +45,14 @@ u = mpc.compute_control(x, d=[0.5])
 
 ```@tabsetup disturbance_preview
 # julia
-using LinearMPC
+using DyadLinearMPC
 
 A = [1.0 1.0; 0.0 1.0]
 B = [0.0; 1.0]
 Gd = [0.0; 1.0]
 C = [1.0 0.0]
 
-mpc = LinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
+mpc = DyadLinearMPC.MPC(A, B; Gd, C, Np=5, Nc=5)
 set_bounds!(mpc; umin=[-0.5], umax=[0.5])
 set_objective!(mpc; Q=[10.0], R=[0.1])
 mpc.settings.disturbance_preview = true

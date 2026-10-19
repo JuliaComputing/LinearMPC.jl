@@ -13,7 +13,7 @@ x_{k+1} = (F-GK) x_k + G v_k.
 ```
 If $K$ is selected such that $F-GK$ is stable, the condensed Quadratic program will be better conditioned compared to the unstable $F$.
 
-In **LinearMPC.jl** you can set a stabilizing feedback $K$ for an MPC controller `mpc` with
+In **DyadLinearMPC.jl** you can set a stabilizing feedback $K$ for an MPC controller `mpc` with
 
 ```@tab
 # julia
@@ -42,18 +42,18 @@ G(s) = \frac{10}{s-10}.
 
 Let's create an MPC controller with prediction horizon $N_p = 50$ and sample time $T_s = 0.1$ seconds for this system:
 ```julia
-using LinearMPC
+using DyadLinearMPC
 using ControlSystemsBase
 
 sys = tf([1],[1, -10])
-mpc = LinearMPC.MPC(sys;Np=50, Ts=0.1)
+mpc = DyadLinearMPC.MPC(sys;Np=50, Ts=0.1)
 set_objective!(mpc;Q=1,Rr=1,R=0)
 ```
 Moreover, we set the weights $Q = 1$ and $R_r = 1$ to be able to track references.
 
 If we try to simulate the system with this controller for $N=100$ time steps with the setpoint $r=1$ 
 ```julia
-sim = LinearMPC.Simulation(mpc;r=[1],N=100)
+sim = DyadLinearMPC.Simulation(mpc;r=[1],N=100)
 ```
 we get an error telling us "Could not setup optimization problem". The reason for this error is that the resulting optimization problem is very ill-conditioned, and cannot handled by the optimization solver. 
 
@@ -61,7 +61,7 @@ To see this more closely, we can check the condition number for the Hessian of t
 
 ```julia
 using LinearAlgebra
-optimization_problem = LinearMPC.mpc2mpqp(mpc)
+optimization_problem = DyadLinearMPC.mpc2mpqp(mpc)
 display(cond(optimization_problem.H))
 ```
 which is around `1e43`. This is a very ill-conditioned problem (typically condition numbers above $\approx$ 1e6 might lead to numerical problems.) 
@@ -73,14 +73,14 @@ set_prestabilizing_feedback!(mpc)
 Now if we check the condition number again 
 
 ```julia
-optimization_problem = LinearMPC.mpc2mpqp(mpc)
+optimization_problem = DyadLinearMPC.mpc2mpqp(mpc)
 display(cond(optimization_problem.H))
 
 ```
 we get that it is $\approx$ `8e2`, which is a striking improvement! Now, if we simulate the system again, but with our updated controller, we get that the output successfully tracks the reference $r=1$. 
 
 ```julia
-sim = LinearMPC.Simulation(mpc;r=[1],N=100)
+sim = DyadLinearMPC.Simulation(mpc;r=[1],N=100)
 using Plots
 plot(sim)
 ```

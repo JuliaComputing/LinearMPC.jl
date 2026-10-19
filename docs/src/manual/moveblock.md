@@ -8,7 +8,7 @@ Another way is to "block" some of the controls by holding them constant over mor
 
 [^Cagienard07]: Cagienard, Raphael, et al. "Move blocking strategies in receding horizon control." _Journal of Process Control_ 17.6 (2007): 563-570.
 
-In **LinearMPC.jl**, controls can be blocked with the function `move_block!`. The function takes in a vector that defines how the control decisions should be held. For example, one can hold the control for 3 time steps, then 2 time steps, then 1 time step, then 4 time steps with
+In **DyadLinearMPC.jl**, controls can be blocked with the function `move_block!`. The function takes in a vector that defines how the control decisions should be held. For example, one can hold the control for 3 time steps, then 2 time steps, then 1 time step, then 4 time steps with
 
 ```@tab
 # julia
@@ -30,15 +30,15 @@ Finally, it is possible to define different move blocks for different control si
 
 ## Example
 
-Consider the example of the control of an inverted pendulum on a cart, which is predefined as one of the examples in **LinearMPC.jl** and can be accessed with the call `mpc_examples`. We consider the case when we want the first output (the position of the cart) to reach a certain value (1 m to be specific.) Below we create three different MPC controllers with different prediction horizons and show the resulting step responses.   
+Consider the example of the control of an inverted pendulum on a cart, which is predefined as one of the examples in **DyadLinearMPC.jl** and can be accessed with the call `mpc_examples`. We consider the case when we want the first output (the position of the cart) to reach a certain value (1 m to be specific.) Below we create three different MPC controllers with different prediction horizons and show the resulting step responses.   
 
 ```@example move_block
-using LinearMPC,Plots
+using DyadLinearMPC,Plots
 tsolve, plt = zeros(3),plot();
 for (k,Np) in  enumerate([100,75,50])
-    mpc,_ = LinearMPC.mpc_examples("invpend",Np)
+    mpc,_ = DyadLinearMPC.mpc_examples("invpend",Np)
     dynamics = (x,u,d) -> mpc.model.F*x + mpc.model.G*u # Since long horizon
-    tsolve[k] = @elapsed sim = LinearMPC.Simulation(dynamics,mpc;r=[1,0],N=500);
+    tsolve[k] = @elapsed sim = DyadLinearMPC.Simulation(dynamics,mpc;r=[1,0],N=500);
     plot!(plt, sim,yids=[1],uids=[], color = k, label="Np = "*string(Np))
 end
 plot!(plt,ylims=(-0.5,1.25), legend=true)
@@ -50,14 +50,14 @@ To reduce the computation time, we consider three different move blocks. We cons
 
 
 ```@example move_block
-mpc,_ = LinearMPC.mpc_examples("invpend",100)
+mpc,_ = DyadLinearMPC.mpc_examples("invpend",100)
 dynamics = (x,u,d) -> mpc.model.F*x + mpc.model.G*u # Since long horizon
 tsolve, plt = zeros(3),plot();
 move_blocks = [Int[], [1,1,1,1,1], [1,1,5,10,10]]
 solve_times = []
 for (k,mb) in  enumerate(move_blocks)
     move_block!(mpc,mb)
-    tsolve[k] = @elapsed sim = LinearMPC.Simulation(dynamics,mpc;r=[1,0],N=500);
+    tsolve[k] = @elapsed sim = DyadLinearMPC.Simulation(dynamics,mpc;r=[1,0],N=500);
     plot!(plt, sim,yids=[1],uids=[], color = k, label="move block = "*string(mb))
     push!(solve_times,sim.solve_times)
 end

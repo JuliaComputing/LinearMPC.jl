@@ -1,8 +1,8 @@
-module LinearMPC
+module DyadLinearMPC
 using LinearAlgebra
 using Statistics
-using DAQPBase
-const DAQP = DAQPBase
+using DyadDAQP
+const DAQP = DyadDAQP
 export DAQP
 
 include("model.jl")
@@ -66,7 +66,7 @@ using PrecompileTools
     F = [1 0.1; 0 1];
     G = [0 0;1 1];
     @compile_workload begin
-        mpc = LinearMPC.MPC(F,G;C=[1 0;0 1],Np=10);
+        mpc = DyadLinearMPC.MPC(F,G;C=[1 0;0 1],Np=10);
         set_objective!(mpc; Q=[1,1], R=[0,0], Rr=1e3);
         set_bounds!(mpc;umin=-ones(2),umax=ones(2));
         add_constraint!(mpc;Ax = [1 0], lb=[8],ub=[10],soft=true)

@@ -1,6 +1,6 @@
 # Generalized Parameters
 
-LinearMPC supports a generalized parameter vector `p` that can enter both the objective and the constraints. By default it is kept constant over the horizon, and setting `parameter_preview = true` upgrades it to a stagewise trajectory $p_k$. In the objective, the term
+DyadLinearMPC supports a generalized parameter vector `p` that can enter both the objective and the constraints. By default it is kept constant over the horizon, and setting `parameter_preview = true` upgrades it to a stagewise trajectory $p_k$. In the objective, the term
 
 ```math
 (E_x p_k + e_x)^T x_k + (E_u p_k + e_u)^T u_k
@@ -74,7 +74,7 @@ T_{k+1} = a \cdot T_k + b \cdot u_k
 
 ```@tabsetup generalized_parameters
 # julia
-using LinearMPC
+using DyadLinearMPC
 using Random
 Random.seed!(0)
 
@@ -87,7 +87,7 @@ C = [1.0;;]
 
 Np = 24
 
-mpc = LinearMPC.MPC(A, B; C, Np=Np, Nc=Np)
+mpc = DyadLinearMPC.MPC(A, B; C, Np=Np, Nc=Np)
 set_bounds!(mpc; umin=[0.0], umax=[1.0])
 set_objective!(mpc; Q=[0.05], Eu=[1.0;;], Ex=[0.02;;])
 setup!(mpc)
