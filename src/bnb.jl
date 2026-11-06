@@ -56,6 +56,26 @@ function setup_bnb!(mpc::MPC)
         relaxed_senses[j] &= ~Cint(DAQP.BINARY)
     end
     mpc.bnb = BnBData(binary_ids,shift_ids,Float64[],deferred,groups,is_deferred,relaxed_senses)
+    set_daqp_branch_priority!(mpc,ctrls,steps)
+end
+
+# The priority of the binary decision variables for the branching rule 3 of DAQP (setting branch_priority): the
+# binary decision variables of the controls of branch_priority, each in the order of its time steps (ctrls and steps
+# of the binary decision variables, see setup_bnb!)
+function set_daqp_branch_priority!(mpc::MPC,ctrls,steps)
+    prio = mpc.settings.branch_priority
+    isempty(prio) && return nothing
+    bad = setdiff(prio,mpc.binary_controls)
+    isempty(bad) || throw(ArgumentError("branch_priority holds the controls $bad, which are not binary controls"))
+    B = mpc.bnb.binary_ids
+    isempty(B) && return nothing
+    ids = Int[]
+    for c in prio
+        p = [k for k in eachindex(B) if ctrls[k] == c]
+        append!(ids,B[sort!(p,by=k->steps[k])])
+    end
+    DAQP.set_branch_priority(mpc.opt_model,ids)
+    return nothing
 end
 
 # The binary decision variables of the group d, given the control (ctrls), the first step (steps) and the
