@@ -1,6 +1,6 @@
 name = "DyadLinearMPC"
 uuid = "18eabb53-b75b-4dba-9989-990addd208d0"
-version = "0.11.1"
+version = "0.11.2"
 authors = ["Daniel Arnström <daniel.arnstrom@gmail.com>", "JuliaHub, Inc."]
 
 [deps]
