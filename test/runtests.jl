@@ -1301,7 +1301,7 @@ Random.seed!(1234)
         ref = satellite_rule(0)
         @test DyadLinearMPC.DAQP.settings(ref.opt_model).branching == 0
         mpcs = [satellite_rule(1), satellite_rule(2), satellite_rule(3; branch_priority=[3,2]),
-                satellite_rule(3; branch_priority=[2])]
+                satellite_rule(3; branch_priority=[2]), satellite_rule(3; branch_priority=[3,-2])]
         @test DyadLinearMPC.DAQP.settings(mpcs[2].opt_model).branching == 2
         @test DyadLinearMPC.DAQP.settings(mpcs[3].opt_model).branching == 3
         x = zeros(3)
@@ -1322,6 +1322,7 @@ Random.seed!(1234)
         @test all(>(0), nodes)
         # Only binary controls can have a priority
         @test_throws ArgumentError satellite_rule(3; branch_priority=[1])
+        @test_throws ArgumentError satellite_rule(3; branch_priority=[-1])
     end
 
     @testset "Warm start of the branch and bound" begin

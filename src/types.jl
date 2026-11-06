@@ -71,7 +71,8 @@ MPC controller settings.
   setting `branching`): the first (`0`) or the last (`1`) in the order of the decision variables, which is the order
   of the time steps, the most fractional (`2`), or the first in the order given by `branch_priority` (`3`)
 - `branch_priority::Vector{Int} = Int[]`: Binary controls (indices of controls) in decreasing priority for
-  `branching = 3`. The binary decision variables of a control are ordered by their time step; those of the binary
+  `branching = 3`. The binary decision variables of a control are ordered by their time step, from the first, or from
+  the last for a negative entry `-c` of the control `c`; those of the binary
   controls that are not listed follow in the order of the decision variables
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
