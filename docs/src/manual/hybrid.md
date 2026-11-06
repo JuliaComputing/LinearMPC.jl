@@ -147,6 +147,10 @@ mpc.settings.branch_priority = [3,2]
 setup!(mpc)
 ```
 
+A negative entry `-c` orders the binary decision variables of the control `c` from the latest time step: with
+`branch_priority = [3,-2]`, the binary decision variables of control 3 come first, in the order of the time
+steps, followed by those of control 2 from the last time step to the first.
+
 The branching rule does not change the solution if the suboptimality tolerances are zero, but it can change the
 number of nodes substantially. For the MPC of a heat pump with binary on/off decisions over several time steps, the
 rules `1` and `2` explored between 2 and 2.5 times fewer nodes than the rule `0`.

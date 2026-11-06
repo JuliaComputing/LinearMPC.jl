@@ -65,14 +65,15 @@ end
 function set_daqp_branch_priority!(mpc::MPC,ctrls,steps)
     prio = mpc.settings.branch_priority
     isempty(prio) && return nothing
-    bad = setdiff(prio,mpc.binary_controls)
+    bad = setdiff(abs.(prio),mpc.binary_controls)
     isempty(bad) || throw(ArgumentError("branch_priority holds the controls $bad, which are not binary controls"))
     B = mpc.bnb.binary_ids
     isempty(B) && return nothing
     ids = Int[]
     for c in prio
-        p = [k for k in eachindex(B) if ctrls[k] == c]
-        append!(ids,B[sort!(p,by=k->steps[k])])
+        # A negative entry -c orders the binary decision variables of control c from the latest time step
+        p = [k for k in eachindex(B) if ctrls[k] == abs(c)]
+        append!(ids,B[sort!(p,by=k->steps[k],rev=c<0)])
     end
     DAQP.set_branch_priority(mpc.opt_model,ids)
     return nothing
