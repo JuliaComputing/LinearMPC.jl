@@ -1,6 +1,6 @@
 name = "DyadLinearMPC"
 uuid = "18eabb53-b75b-4dba-9989-990addd208d0"
-version = "0.11.0"
+version = "0.11.1"
 authors = ["Daniel Arnström <daniel.arnstrom@gmail.com>", "JuliaHub, Inc."]
 
 [deps]
@@ -27,7 +27,7 @@ ControlSystemsExt = "ControlSystemsBase"
 [compat]
 ASCertain = "~0.4.2"
 ControlSystemsBase = "1.10"
-DyadDAQP = "0.6"
+DyadDAQP = "0.6.2"
 ForwardDiff = "1, 0.10"
 Latexify = "0.16"
 MatrixEquations = "2.4.5"
