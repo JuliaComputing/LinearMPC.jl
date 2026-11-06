@@ -130,6 +130,27 @@ A group with `weights` is resolved by the encodable integers just below and abov
 
 The relaxation requires a DAQP library in which an update of the senses updates the binary constraints of the branch and bound ([darnstrom/daqp#208](https://github.com/darnstrom/daqp/pull/208)); otherwise, `DyadLinearMPC.solve` throws an error. The generated C code resolves the groups in the same way, also combined with the warm start, and does not depend on this: the header then defines `DAQP_BNB_DEFERRED`, the variable `bnb_source` tells the source of the latest solution, `bnb_deferred_tol` holds the tolerance, and `mpc_reset_bnb_deferred()` resets the source and the stored solution of the warm start.
 
+## Branching order
+DAQP explores the tree of the branch and bound depth first. The setting `branching` selects the binary decision
+variable to branch over among those that the relaxation of a node does not satisfy: the first (`0`, default) or the
+last (`1`) in the order of the decision variables, which is the order of the time steps, the most fractional (`2`),
+or the first in a priority list (`3`). The priority list is given by the setting `branch_priority`, a vector of
+binary controls in decreasing priority; the binary decision variables of a control are ordered by their time step,
+and those of the binary controls that are not listed follow in the order of the decision variables.
+
+```julia
+mpc.settings.branching = 2 # most fractional
+setup!(mpc)
+
+mpc.settings.branching = 3 # the binary decision variables of control 3 first, then those of control 2
+mpc.settings.branch_priority = [3,2]
+setup!(mpc)
+```
+
+The branching rule does not change the solution if the suboptimality tolerances are zero, but it can change the
+number of nodes substantially. For the MPC of a heat pump with binary on/off decisions over several time steps, the
+rules `1` and `2` explored between 2 and 2.5 times fewer nodes than the rule `0`.
+
 ## Mixed logical dynamical systems
 
 In **DyadLinearMPC.jl**, MLD models can be built with an augmented

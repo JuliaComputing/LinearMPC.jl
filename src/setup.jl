@@ -23,8 +23,9 @@ function setup!(mpc::MPC)
             @warn " Cannot setup optimization problem " setup_flag
         end
     else
-        # Set up soft weight
-        DAQP.settings(mpc.opt_model,Dict(:rho_soft=>1/mpc.settings.soft_weight))
+        # Set up soft weight and the branching rule
+        DAQP.settings(mpc.opt_model,Dict{Symbol,Any}(:rho_soft=>1/mpc.settings.soft_weight,
+                                                     :branching=>Cint(mpc.settings.branching)))
         setup_bnb!(mpc)
         mpc.mpqp_issetup = true
     end

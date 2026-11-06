@@ -67,6 +67,12 @@ MPC controller settings.
 - `bnb_warm_start::Bool = false`: Warm start the branch and bound of problems with binary controls from the solution of the previous call (see [`solve`](@ref DyadLinearMPC.solve))
 - `deferred_tol::Float64 = 0.0`: Largest increase of the objective over that of the relaxed search for which the resolved deferred binary controls are accepted without the full branch and bound (see [`defer_binary_controls!`](@ref))
 - `deferred_max_combinations::Int = 64`: Largest number of combinations of the candidates of the groups of deferred binary controls that are evaluated (see [`defer_binary_controls!`](@ref))
+- `branching::Int = 0`: Selection of the binary decision variable to branch over in the branch and bound of DAQP (its
+  setting `branching`): the first (`0`) or the last (`1`) in the order of the decision variables, which is the order
+  of the time steps, the most fractional (`2`), or the first in the order given by `branch_priority` (`3`)
+- `branch_priority::Vector{Int} = Int[]`: Binary controls (indices of controls) in decreasing priority for
+  `branching = 3`. The binary decision variables of a control are ordered by their time step; those of the binary
+  controls that are not listed follow in the order of the decision variables
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
 Base.@kwdef mutable struct MPCSettings
@@ -81,6 +87,8 @@ Base.@kwdef mutable struct MPCSettings
     bnb_warm_start::Bool = false
     deferred_tol::Float64 = 0.0
     deferred_max_combinations::Int = 64
+    branching::Int = 0
+    branch_priority::Vector{Int} = Int[]
     solver_opts::Dict{Symbol,Any} = Dict()
     traj2setpoint::Matrix{Float64} = zeros(0,0)
 end

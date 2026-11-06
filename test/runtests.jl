@@ -1287,6 +1287,43 @@ Random.seed!(1234)
 
     end
 
+    @testset "Branching rules" begin
+        # Every branching rule gives the optimal solution (abs_subopt = 0 by default)
+        function satellite_rule(branching; branch_priority=Int[])
+            mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
+            move_block!(mpc,[1,1,2,4,12])
+            mpc.settings.branching = branching
+            mpc.settings.branch_priority = branch_priority
+            setup!(mpc)
+            return mpc
+        end
+        θb(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+        ref = satellite_rule(0)
+        @test DyadLinearMPC.DAQP.settings(ref.opt_model).branching == 0
+        mpcs = [satellite_rule(1), satellite_rule(2), satellite_rule(3; branch_priority=[3,2]),
+                satellite_rule(3; branch_priority=[2])]
+        @test DyadLinearMPC.DAQP.settings(mpcs[2].opt_model).branching == 2
+        @test DyadLinearMPC.DAQP.settings(mpcs[3].opt_model).branching == 3
+        x = zeros(3)
+        nodes = zeros(Int,1+length(mpcs))
+        for k in 1:15
+            θ = θb(ref,x,[k <= 5 ? 0.0 : 0.5,0,0])
+            z0,f0,flag0,info0 = DyadLinearMPC.solve(ref,θ)
+            @test flag0 >= 1
+            nodes[1] += info0.nodes
+            for (i,m) in enumerate(mpcs)
+                z,f,flag,info = DyadLinearMPC.solve(m,θ)
+                @test flag >= 1
+                @test f ≈ f0 atol=1e-6*(1+abs(f0))
+                nodes[i+1] += info.nodes
+            end
+            x = ref.model.F*x + ref.model.G*z0[1:3]
+        end
+        @test all(>(0), nodes)
+        # Only binary controls can have a priority
+        @test_throws ArgumentError satellite_rule(3; branch_priority=[1])
+    end
+
     @testset "Warm start of the branch and bound" begin
         function satellite(warm; abs_subopt=0.0)
             mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
