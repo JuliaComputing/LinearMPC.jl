@@ -92,7 +92,25 @@ Base.@kwdef mutable struct MPCSettings
     branch_priority::Vector{Int} = Int[]
     solver_opts::Dict{Symbol,Any} = Dict()
     traj2setpoint::Matrix{Float64} = zeros(0,0)
+    tunable_input_bounds::Bool = false
 end
+
+# The rows of the constraints of an mpQP whose bounds depend on the input bounds (setting
+# `tunable_input_bounds`): with p = [umin; umax],
+#   bu[upper_rows[i]] = upper_offset[i] + upper_coef[i]*p[upper_ids[i]]
+#   bl[lower_rows[i]] = lower_offset[i] + lower_coef[i]*p[lower_ids[i]]
+struct InputBoundMap
+    upper_rows::Vector{Int}
+    upper_ids::Vector{Int}
+    upper_coef::Vector{Float64}
+    upper_offset::Vector{Float64}
+    lower_rows::Vector{Int}
+    lower_ids::Vector{Int}
+    lower_coef::Vector{Float64}
+    lower_offset::Vector{Float64}
+end
+InputBoundMap() = InputBoundMap(Int[],Int[],Float64[],Float64[],Int[],Int[],Float64[],Float64[])
+Base.isempty(m::InputBoundMap) = isempty(m.upper_rows) && isempty(m.lower_rows)
 
 struct MPQP
     H::Matrix{Float64}
@@ -120,11 +138,17 @@ struct MPQP
 
     # Cholesky factor of H from a square root of the objective (nothing if not formed)
     Hchol::Union{Nothing,Cholesky{Float64,Matrix{Float64}}}
+
+    # The constraint rows whose bounds depend on the input bounds (empty if they are fixed)
+    input_bounds::InputBoundMap
 end
 
 # (Without a factor of H)
 MPQP(H,f,H_theta,f_theta,A,bu,bl,W,senses,prio,break_points,has_binaries,is_symmetric,_bth,_bu,_bl,_f) =
     MPQP(H,f,H_theta,f_theta,A,bu,bl,W,senses,prio,break_points,has_binaries,is_symmetric,_bth,_bu,_bl,_f,nothing)
+# (With fixed input bounds)
+MPQP(H,f,H_theta,f_theta,A,bu,bl,W,senses,prio,break_points,has_binaries,is_symmetric,_bth,_bu,_bl,_f,Hchol) =
+    MPQP(H,f,H_theta,f_theta,A,bu,bl,W,senses,prio,break_points,has_binaries,is_symmetric,_bth,_bu,_bl,_f,Hchol,InputBoundMap())
 
 function MPQP()
     return MPQP(Matrix{Float64}(undef, 0, 0),Float64[],Matrix{Float64}(undef, 0, 0), Matrix{Float64}(undef, 0, 0),

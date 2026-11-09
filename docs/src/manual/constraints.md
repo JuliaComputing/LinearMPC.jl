@@ -89,3 +89,18 @@ To be more specific, a constraint $\underline{b} \leq A_x x_k + A_u u_k \leq \ov
 \end{aligned}
 ```
 To penalize violation of the constraint, a term $\rho \|\epsilon\|$ is added to the objective function, where the weight $\rho$ determines how hard the soft constraints should be penalized. By default, $\rho$ is set to `1e6`.
+
+## Changing the input bounds online
+The input bounds are constants of the condensed optimization problem, so a change with `set_input_bounds!` requires a new setup of the problem. With the setting `tunable_input_bounds`, the bounds of the constraints that correspond to the input bounds are instead functions of $\underline{u}$ and $\overline{u}$, and `update_input_bounds!` changes them without a new setup. Only the bounds of these constraints change; the Hessian, the constraint matrix and the factorization in DAQP are unchanged. Without a prestabilizing feedback, these constraints remain simple bounds of the decision variables.
+
+```julia
+set_input_bounds!(mpc; umin=[-2.0, 0.0], umax=[1.0, 3.0])
+settings!(mpc; tunable_input_bounds=true)
+setup!(mpc)
+u = compute_control(mpc, x)
+
+update_input_bounds!(mpc; umin=[-1.0, 0.5], umax=[1.0, 2.0])
+u = compute_control(mpc, x)
+```
+
+With `tunable_input_bounds`, the input bounds are part of the problem also if none were set, with the initial values $\pm 10^{30}$ (no bound). The bounds of binary controls enter the objective and cannot be changed in this way. In the generated C code (see [Code Generation](@ref man_codegen)), the function `mpc_set_input_bounds(umin, umax)` changes the input bounds.

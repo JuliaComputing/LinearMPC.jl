@@ -46,6 +46,10 @@ Generates C code for `mpc` in the directory `dir`. The control is computed by th
   The code does not depend on the version of the DAQP library that Julia uses: the relaxed search
   replaces the binary constraints of the branch and bound of the generated workspace directly. It
   has no effect without groups, without binary controls or with a prestabilizing feedback.
+
+With the setting `tunable_input_bounds`, the generated header declares
+`mpc_set_input_bounds(c_float* umin, c_float* umax)`, which changes the input bounds as
+[`update_input_bounds!`](@ref) does; the new bounds apply from the next call of `mpc_compute_control`.
 """
 function codegen(mpc::MPC;fname="mpc_workspace", dir="codegen", opt_settings=nothing, src=true, float_type="double",warm_start=false,
                  bnb_warm_start=mpc.settings.bnb_warm_start, bnb_deferred=true)
@@ -242,6 +246,9 @@ function render_mpc_workspace(mpc;fname="mpc_workspace",dir="",fmode="w", float_
     write_float_array(fsrc,mpLDP.u_offset[:],"u_offset");
     write_float_array(fsrc,mpLDP.uscaling[:],"uscaling");
 
+    tunable_bounds = mpc.settings.tunable_input_bounds
+    tunable_bounds && render_input_bound_data(mpc,mpLDP,fh,fsrc)
+
     if(mpc.settings.reference_condensation)
         @printf(fsrc, "#define N_PREVIEW_HORIZON %d\n",mpc.Np)
         @printf(fsrc, "extern c_float traj2setpoint[%d];\n", length(mpc.traj2setpoint));
@@ -271,6 +278,11 @@ function render_mpc_workspace(mpc;fname="mpc_workspace",dir="",fmode="w", float_
         qp_src = replace(qp_src, bnb_call => (bnb_deferred ? "mpc_bnb_deferred()" : "mpc_bnb_warm_start()"))
     end
     write(fsrc, qp_src)
+    if tunable_bounds
+        fib = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/mpc_input_bounds.c"), "r");
+        write(fsrc, read(fib))
+        close(fib)
+    end
     for (enabled,template) in ((bnb_warm_start,"mpc_bnb_warm_start"),(bnb_deferred,"mpc_bnb_deferred"))
         enabled || continue
         fbnb_h = open(joinpath(dirname(pathof(DyadLinearMPC)),"../codegen/$template.h"), "r");
@@ -301,6 +313,29 @@ the Hessian (`RinvD`, used by DAQP for a diagonal Hessian) and not the triangula
 function daqp_diagonal_factor(d::DAQP.Model)
     work = unsafe_load(d.work)
     return work.Rinv == C_NULL && work.RinvD != C_NULL
+end
+
+# Data of the constraints whose bounds depend on the input bounds (setting tunable_input_bounds, see
+# mpc_input_bounds.c), in the coordinates of the LDP: du[row] = offset + coef*p[id] with p = [umin; umax]
+function render_input_bound_data(mpc,mpLDP,fh,fsrc)
+    ib = mpc.mpQP.input_bounds
+    s(r) = mpLDP.scaling[r] > 0 ? mpLDP.scaling[r] : 1.0
+    padded(a) = isempty(a) ? zeros(eltype(a),1) : a
+    @printf(fh, "#define MPC_TUNABLE_INPUT_BOUNDS 1\n")
+    @printf(fh, "#define MPC_BOUND_INF ((c_float)1e30)\n")
+    for (side,rows,ids,coef,offset) in (("upper",ib.upper_rows,ib.upper_ids,ib.upper_coef,ib.upper_offset),
+                                        ("lower",ib.lower_rows,ib.lower_ids,ib.lower_coef,ib.lower_offset))
+        n = length(rows)
+        @printf(fh, "#define N_INPUT_BOUND_%s %d\n", uppercase(side), n)
+        ldp_offset = [(offset[i] + mpLDP.Δd[rows[i]])/s(rows[i]) for i in 1:n]
+        ldp_coef = [coef[i]/s(rows[i]) for i in 1:n]
+        for (name,a,isint) in (("rows",rows.-1,true),("ids",ids.-1,true),("coef",ldp_coef,false),("offset",ldp_offset,false))
+            a = padded(a)
+            @printf(fh, "extern %s input_bound_%s_%s[%d];\n", isint ? "int" : "c_float", side, name, length(a))
+            isint ? write_int_array(fsrc,a,"input_bound_$(side)_$name") : write_float_array(fsrc,Float64.(a),"input_bound_$(side)_$name")
+        end
+    end
+    @printf(fh, "void mpc_set_input_bounds(c_float* umin, c_float* umax);\n\n")
 end
 
 # Data of the warm start of the branch and bound in the generated code (see mpc_bnb_warm_start.c):
@@ -436,5 +471,5 @@ function qp2ldp(mpQP,n_control;normalize=true)
     Uth_offset = Uth_offset'[:,:]
 
     return (M=Mext[n+1:end,:], Dth=Dth, du=du, dl=dl, 
-            Uth_offset=Uth_offset, u_offset = u_offset, uscaling=uscaling, scaling=norm_factors)
+            Uth_offset=Uth_offset, u_offset = u_offset, uscaling=uscaling, scaling=norm_factors, Δd=Δd[:])
 end

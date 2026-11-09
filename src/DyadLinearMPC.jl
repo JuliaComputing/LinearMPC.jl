@@ -21,7 +21,7 @@ export reset_bnb_warm_start!
 export defer_binary_controls!, clear_deferred_binary_controls!
 include("setup.jl");
 export setup!
-export set_bounds!,add_constraint!,set_input_bounds!, set_output_bounds!
+export set_bounds!,add_constraint!,set_input_bounds!, set_output_bounds!, update_input_bounds!
 export set_objective!, set_weights!, set_horizon!
 export set_binary_controls!
 export set_disturbance!, set_x0_uncertainty!

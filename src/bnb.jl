@@ -101,7 +101,7 @@ function setup_deferred_group(d::DeferredBinaryGroup, ctrls, steps, durations)
 end
 
 # The logic constraints of the binary decision variables at the positions `pos`: the general constraints that
-# are neither soft nor binary, whose bounds do not depend on the parameter, and that involve only these and the
+# are neither soft nor binary, whose bounds do not depend on the parameter or the input bounds, and that involve only these and the
 # binary decision variables that are not deferred, at least one of the former. With all of these binary
 # decision variables fixed, they determine whether a candidate is infeasible without a solve.
 function bnb_logic_rows(mpQP, binary_ids, is_deferred, pos)
@@ -112,6 +112,8 @@ function bnb_logic_rows(mpQP, binary_ids, is_deferred, pos)
         i = ms+r
         (mpQP.senses[i] & (DAQP.SOFT|DAQP.BINARY)) == 0 || continue
         iszero(view(mpQP.W,i,:)) || continue
+        # (The bounds of the rows that depend on the input bounds can change after the setup)
+        (i in mpQP.input_bounds.upper_rows || i in mpQP.input_bounds.lower_rows) && continue
         nz = findall(!iszero,view(mpQP.A,r,:))
         all(j -> haskey(pos_of,j), nz) && any(j -> pos_of[j] in pos, nz) || continue
         push!(rows,BnBLogicRow([pos_of[j] for j in nz],mpQP.A[r,nz],mpQP.bl[i],mpQP.bu[i]))

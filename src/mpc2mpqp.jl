@@ -15,7 +15,29 @@ struct DenseConstraints
     issoft::BitVector
     isbinary::BitVector
     prio::Vector{Cint}
+    # Dependence of the bounds on p = [umin; umax] (setting tunable_input_bounds): the bounds are
+    # bu + Pu*p and bl + Pl*p. Both have zero columns if the input bounds are fixed.
+    Pu::Matrix{Float64}
+    Pl::Matrix{Float64}
 end
+DenseConstraints(A,bu,bl,W,issoft,isbinary,prio) =
+    DenseConstraints(A,bu,bl,W,issoft,isbinary,prio,zeros(length(bu),0),zeros(length(bu),0))
+
+# true if the MPC has input bounds, which are then simple bounds of the decision variables
+# (general constraints with a prestabilizing feedback) for every control and time step
+has_input_bounds(mpc::MPC) = !isempty(mpc.umax) || mpc.settings.tunable_input_bounds
+
+# The input bounds of `mpc`, with the absent bounds at ±1e30
+function input_bound_vectors(mpc::MPC)
+    nu = mpc.model.nu
+    umin = isempty(mpc.umin) ? fill(-1e30,nu) : clamp.(mpc.umin,-1e30,1e30)
+    umax = isempty(mpc.umax) ? fill(1e30,nu) : clamp.(mpc.umax,-1e30,1e30)
+    return umin, umax
+end
+
+# The controls whose bounds can be changed by update_input_bounds! (all but the binary controls,
+# whose bounds enter the objective)
+tunable_input_ids(mpc::MPC) = mpc.settings.tunable_input_bounds ? setdiff(1:mpc.model.nu, mpc.binary_controls) : Int[]
 
 # Create Φ and Γ such that 
 # X = Φ x0 + Γ U  (where X and U contains xi and ui stacked..)
@@ -236,9 +258,20 @@ function create_controlbounds(mpc::MPC, F, Γ, Φ)
         A = zeros(0,mpc.Nc*nu)
         W = zeros(Nb*nu,nxe)
     end
-    # Create bounds
-    ub = repeat(mpc.umax,Nb,1)
-    lb = repeat(mpc.umin,Nb,1)
+    # Create bounds. The bounds of the tunable controls are bu + Pu*[umin; umax] and bl + Pl*[umin; umax],
+    # with zero in bu and bl apart from the tightening.
+    umin, umax = input_bound_vectors(mpc)
+    tunable = tunable_input_ids(mpc)
+    umin[tunable] .= 0
+    umax[tunable] .= 0
+    ub = repeat(umax,Nb,1)
+    lb = repeat(umin,Nb,1)
+    Pu = zeros(Nb*nu, mpc.settings.tunable_input_bounds ? 2nu : 0)
+    Pl = zeros(Nb*nu, size(Pu,2))
+    for k in 1:Nb, j in tunable
+        Pl[(k-1)*nu+j, j] = 1
+        Pu[(k-1)*nu+j, nu+j] = 1
+    end
 
     # Tighten constraint
     if(!iszero(mpc.K) && is_robust(mpc))
@@ -256,7 +289,7 @@ function create_controlbounds(mpc::MPC, F, Γ, Φ)
     end
     W = insert_preview_parameter_blocks(mpc, W, Wr, Wd)
     np > 0 && (W = [W zeros(size(W,1), np)])
-    return A,ub,lb, W
+    return A,ub,lb, W, Pu, Pl
 end
 
 # Create A u <= b+W*theta
@@ -375,8 +408,9 @@ function create_constraints(mpc::MPC,F,Φ,Γ)
     nth = sum(get_parameter_dims(mpc))
     !iszero(mpc.model.f_offset) && (nth +=1); # constant offset in dynamics
     # Control bounds
-    if(!isempty(mpc.umax))
-        A,bu,bl,W = create_controlbounds(mpc,F,Γ,Φ)
+    np_bounds = mpc.settings.tunable_input_bounds ? 2*mpc.model.nu : 0
+    if(has_input_bounds(mpc))
+        A,bu,bl,W,Pu,Pl = create_controlbounds(mpc,F,Γ,Φ)
         issoft= falses(n);
         prios = zeros(Int,n)
         isbinary = falses(mpc.model.nu*mpc.Nc)
@@ -390,6 +424,7 @@ function create_constraints(mpc::MPC,F,Φ,Γ)
     else
         A = zeros(0,n);
         bu,bl,W = zeros(0),zeros(0),zeros(0,nth);
+        Pu,Pl = zeros(0,np_bounds),zeros(0,np_bounds)
         issoft,isbinary = falses(0),falses(0)
         prios = zeros(0)
     end
@@ -405,6 +440,8 @@ function create_constraints(mpc::MPC,F,Φ,Γ)
         bl = [bl;blg];
         A = [A;Ag];
         W = [W;Wg];
+        Pu = [Pu;zeros(my,np_bounds)]
+        Pl = [Pl;zeros(my,np_bounds)]
     end
 
     # Collapse constant term in constraints. The constant is the last column of the extended state,
@@ -417,7 +454,7 @@ function create_constraints(mpc::MPC,F,Φ,Γ)
         W = W[:,1:end .!= ic]
     end
 
-    return DenseConstraints(A,bu[:],bl[:],W,issoft,isbinary,prios)
+    return DenseConstraints(A,bu[:],bl[:],W,issoft,isbinary,prios,Pu,Pl)
 end
 
 # Create H, f_theta, H_theta such that the objective function for a given
@@ -751,7 +788,7 @@ Consider instead to:
         constraints = remove_duplicate(constraints)
     end
 
-    return MPQP(objective,constraints)
+    return MPQP(objective,constraints;p=vcat(input_bound_vectors(mpc)...))
 end
 
 function create_extended_system(mpc::MPC)
@@ -843,6 +880,7 @@ end
 
 function remove_redundant(c::DenseConstraints)
     A,bu,bl,W = c.A, c.bu, c.bl, c.W
+    Pu,Pl = c.Pu, c.Pl
     issoft,isbinary,prio = c.issoft, c.isbinary, c.prio
     nsimple = length(bu) - size(A,1)
     keep = collect(1:nsimple) # Don't remove simple bounds
@@ -858,11 +896,17 @@ function remove_redundant(c::DenseConstraints)
                 bu[id] = -bl[id]
                 bl[id] = -bui
                 W[id,:] .=-W[id,:] .+ 0.0
+                Pui = Pu[id,:]
+                Pu[id,:] .= -Pl[id,:] .+ 0.0
+                Pl[id,:] .= -Pui .+ 0.0
             end
             if count(x -> abs(x) > 1e-12, a) == 1 # check if bound is a simple bound
                 if nz_id <= nsimple  && prio[nz_id] == prio[id]
                     if issoft[nz_id] == issoft[id] && isbinary[nz_id] == isbinary[id]
-                        if iszero(W[id,:]-W[nz_id,:])
+                        # (Not into a bound that depends on the input bounds, which would then be the
+                        # minimum of the two)
+                        if iszero(W[id,:]-W[nz_id,:]) && iszero(Pu[nz_id,:]) && iszero(Pl[nz_id,:]) &&
+                                iszero(Pu[id,:]) && iszero(Pl[id,:])
                             bu[nz_id] = min(bu[nz_id],bu[id]/norm_factor)
                             bl[nz_id] = max(bl[nz_id],bl[id]/norm_factor)
                             continue
@@ -878,9 +922,10 @@ function remove_redundant(c::DenseConstraints)
         keepA = keep[nsimple+1:end].-nsimple
         A = A[keepA,:].*norm_factors[nsimple+1:end]
         bu,bl,W=bu[keep].*norm_factors,bl[keep].*norm_factors,W[keep,:].*norm_factors
+        Pu,Pl = Pu[keep,:].*norm_factors,Pl[keep,:].*norm_factors
         issoft,isbinary,prio = issoft[keep],isbinary[keep],prio[keep]
     end
-    return DenseConstraints(A,bu,bl,W,issoft,isbinary,prio)
+    return DenseConstraints(A,bu,bl,W,issoft,isbinary,prio,Pu,Pl)
 end
 
 function find_duplicate_rows(A::AbstractMatrix; digits=6)
@@ -907,7 +952,9 @@ function remove_duplicate(c::DenseConstraints)
 
     nsimple = length(bu) - size(A,1)
     idsA = nsimple+1:length(bu)
-    Aext = [A W[idsA,:] issoft[idsA] isbinary[idsA] prio[idsA]]
+    # (Rows are duplicates only if their bounds depend on the input bounds in the same way, then the
+    # minimum of the upper bounds is that of their constant parts)
+    Aext = [A W[idsA,:] c.Pu[idsA,:] c.Pl[idsA,:] issoft[idsA] isbinary[idsA] prio[idsA]]
     duplicate_map = find_duplicate_rows(Aext)
 
     if(length(duplicate_map) == size(A,1)) # No duplicates
@@ -918,6 +965,8 @@ function remove_duplicate(c::DenseConstraints)
     bu_new = [bu[1:nsimple];zeros(length(duplicate_map))]
     bl_new = [bl[1:nsimple];zeros(length(duplicate_map))]
     W_new = [W[1:nsimple,:];zeros(length(duplicate_map),size(W,2))]
+    Pu_new = [c.Pu[1:nsimple,:];zeros(length(duplicate_map),size(c.Pu,2))]
+    Pl_new = [c.Pl[1:nsimple,:];zeros(length(duplicate_map),size(c.Pl,2))]
     issoft_new = [issoft[1:nsimple];falses(length(duplicate_map))]
     isbinary_new = [isbinary[1:nsimple];falses(length(duplicate_map))]
     prio_new = [prio[1:nsimple];zeros(Cint,length(duplicate_map))]
@@ -930,19 +979,21 @@ function remove_duplicate(c::DenseConstraints)
         bu_new[nsimple+i]= minimum(bu[ids])
         bl_new[nsimple+i] = maximum(bl[ids])
         W_new[nsimple+i,:] = W[id,:]
+        Pu_new[nsimple+i,:] = c.Pu[id,:]
+        Pl_new[nsimple+i,:] = c.Pl[id,:]
         issoft_new[nsimple+i] = issoft[id]
         isbinary_new[nsimple+i] = isbinary[id]
         prio_new[nsimple+i] = prio[id]
     end
 
-    return DenseConstraints(A_new,bu_new,bl_new,W_new,issoft_new,isbinary_new,prio_new)
+    return DenseConstraints(A_new,bu_new,bl_new,W_new,issoft_new,isbinary_new,prio_new,Pu_new,Pl_new)
 end
 
 # The matrix T of the move blocks, such that the controls over the control horizon are T times the
 # decision variables, and the rows of the control bounds that are kept (the first step of each block)
 function move_block_matrix(mpc::MPC)
     nu = mpc.model.nu
-    nu_bounds = length(mpc.umax)
+    nu_bounds = has_input_bounds(mpc) ? nu : 0
 
     nUold = nu*mpc.Nc 
     nUnew = sum(length(mb) for mb in mpc.move_blocks)
@@ -965,7 +1016,7 @@ function move_block_matrix(mpc::MPC)
 end
 
 function apply_move_block(mpc::MPC, obj::DenseObjective, c::DenseConstraints)
-    nu_bounds = length(mpc.umax)
+    nu_bounds = has_input_bounds(mpc) ? mpc.model.nu : 0
     T,keep = move_block_matrix(mpc)
     new_obj = DenseObjective(T'*obj.H*T, T'*obj.f, T'*obj.f_theta, obj.H_theta,
                              isnothing(obj.Hsqrt) ? nothing : obj.Hsqrt*T)
@@ -974,7 +1025,8 @@ function apply_move_block(mpc::MPC, obj::DenseObjective, c::DenseConstraints)
 
     # Remove superfluous control bounds
     Anew = !iszero(mpc.K) ? c.A[keep,:]*T : c.A*T # control bounds are in A if prestabilizing feedback
-    new_c = DenseConstraints(Anew, c.bu[keep], c.bl[keep], c.W[keep,:], c.issoft[keep], c.isbinary[keep], c.prio[keep])
+    new_c = DenseConstraints(Anew, c.bu[keep], c.bl[keep], c.W[keep,:], c.issoft[keep], c.isbinary[keep], c.prio[keep],
+                             c.Pu[keep,:], c.Pl[keep,:])
     return new_obj,new_c
 end
 
@@ -984,15 +1036,27 @@ function sort_constraints(c::DenseConstraints)
     Anew = c.A[order,:]
     order = [1:ns; order .+ ns] # Offset correctly
     return DenseConstraints(Anew, c.bu[order], c.bl[order], c.W[order,:], 
-                            c.issoft[order], c.isbinary[order], c.prio[order])
+                            c.issoft[order], c.isbinary[order], c.prio[order], c.Pu[order,:], c.Pl[order,:])
 end
 
-function MPQP(obj::DenseObjective, c::DenseConstraints)
+# `p` = [umin; umax] are the input bounds at which the bounds that depend on them are evaluated
+function MPQP(obj::DenseObjective, c::DenseConstraints; p=zeros(size(c.Pu,2)))
+    input_bounds = input_bound_map(c)
+    tunable_rows = falses(length(c.bu))
+    tunable_rows[input_bounds.upper_rows] .= true
+    tunable_rows[input_bounds.lower_rows] .= true
+    if !isempty(input_bounds)
+        c.bu .+= c.Pu*p
+        c.bl .+= c.Pl*p
+    end
+
     # Setup sense
     senses = zeros(Cint,length(c.bu)); 
 
-    # ignore constraints which have inf bounds
+    # ignore constraints which have inf bounds (the rows with tunable bounds remain inequality
+    # constraints, since their bounds can be changed after the setup)
     for i in 1:length(c.bu)
+        tunable_rows[i] && continue
         if(c.bu[i] > 1e20 && c.bl[i] < -1e20)
             senses[i] = DAQP.IMMUTABLE
         elseif abs(c.bu[i]-c.bl[i]) < 1e-12
@@ -1019,7 +1083,26 @@ function MPQP(obj::DenseObjective, c::DenseConstraints)
                 c.A,c.bu,c.bl,c.W, senses, c.prio, break_points,
                 any(c.isbinary),is_symmetric,
                 zeros(m),ones(m),-ones(m),zeros(n),
-                is_symmetric ? factor_from_sqrt(obj.Hsqrt,n) : nothing)
+                is_symmetric ? factor_from_sqrt(obj.Hsqrt,n) : nothing,
+                input_bounds)
+end
+
+# The rows of `c` whose bounds depend on the input bounds, from Pu and Pl (each row depends on at most one
+# input bound per side)
+function input_bound_map(c::DenseConstraints)
+    rows_ids_coefs(P) = begin
+        rows,ids,coefs = Int[],Int[],Float64[]
+        for i in 1:size(P,1)
+            nz = findall(!iszero, view(P,i,:))
+            isempty(nz) && continue
+            length(nz) == 1 || error("A constraint row depends on more than one input bound")
+            push!(rows,i); push!(ids,nz[1]); push!(coefs,P[i,nz[1]])
+        end
+        rows,ids,coefs
+    end
+    ur,ui,uc = rows_ids_coefs(c.Pu)
+    lr,li,lc = rows_ids_coefs(c.Pl)
+    return InputBoundMap(ur,ui,uc,c.bu[ur],lr,li,lc,c.bl[lr])
 end
 function create_variational_objective(mpc::MPC,Φ,Γ,Cp)
     N,Nc = mpc.Np,mpc.Nc

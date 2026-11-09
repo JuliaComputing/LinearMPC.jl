@@ -48,6 +48,70 @@ function set_input_bounds!(mpc::MPC; umin=zeros(0), umax=zeros(0))
 end
 
 """
+    update_input_bounds!(mpc; umin=mpc.umin, umax=mpc.umax)
+
+Changes the input bounds `umin ≤ u ≤ umax` without a new setup of the optimization problem. This requires
+the setting `tunable_input_bounds` (`settings!(mpc; tunable_input_bounds=true)`) when `mpc` is set up, which
+makes the bounds of the inputs a function of `umin` and `umax` in the condensed problem. The change then
+only modifies the bounds of the corresponding constraints of the problem, as the parameter does at every
+solve; the Hessian, the constraint matrix and the factorization in DAQP are unchanged.
+
+With `tunable_input_bounds`, the input bounds are part of the problem also if they were not set by
+[`set_input_bounds!`](@ref), with the initial values `±1e30` (no bound). Absent and infinite entries of
+`umin` and `umax` are no bound. The bounds of binary controls (see [`set_binary_controls!`](@ref)) enter
+the objective and cannot be changed by this function. Constraint tightening (see
+[`set_disturbance!`](@ref)) applies to the new bounds as to the bounds at the setup.
+
+The generated C code (see [`codegen`](@ref)) has the corresponding function `mpc_set_input_bounds(umin, umax)`.
+
+# Example
+```julia
+mpc = DyadLinearMPC.MPC(F, G; Np=20)
+set_input_bounds!(mpc; umin=[-1.0], umax=[1.0])
+settings!(mpc; tunable_input_bounds=true)
+setup!(mpc)
+update_input_bounds!(mpc; umin=[-0.5], umax=[0.8])
+u = compute_control(mpc, x)
+```
+"""
+function update_input_bounds!(mpc::MPC; umin=mpc.umin, umax=mpc.umax)
+    nu = mpc.model.nu
+    mpc.settings.tunable_input_bounds ||
+        throw(ArgumentError("Changing the input bounds without a setup requires the setting tunable_input_bounds"))
+    pad(v,val) = isempty(v) ? fill(val,nu) : Float64.(collect(v))
+    umin_new, umax_new = pad(umin,-1e30), pad(umax,1e30)
+    length(umin_new) == nu || throw(ArgumentError("umin must have length $nu, got $(length(umin_new))"))
+    length(umax_new) == nu || throw(ArgumentError("umax must have length $nu, got $(length(umax_new))"))
+    (any(isnan, umin_new) || any(isnan, umax_new)) && throw(ArgumentError("The input bounds must not be NaN"))
+    all(umin_new .<= umax_new) || throw(ArgumentError("umin must not exceed umax"))
+    clamp!(umin_new,-1e30,1e30)
+    clamp!(umax_new,-1e30,1e30)
+    if !isempty(mpc.binary_controls)
+        umin_old, umax_old = input_bound_vectors(mpc)
+        b = mpc.binary_controls
+        (umin_new[b] == umin_old[b] && umax_new[b] == umax_old[b]) ||
+            throw(ArgumentError("The bounds of the binary controls $b cannot be changed without a setup"))
+    end
+    mpc.umin, mpc.umax = umin_new, umax_new
+    # Without a setup problem, setup! forms the problem with the new bounds
+    mpc.mpqp_issetup || return nothing
+    apply_input_bounds!(mpc.mpQP, [umin_new; umax_new])
+    return nothing
+end
+
+# Sets the bounds of the rows of mpQP that depend on p = [umin; umax]
+function apply_input_bounds!(mpQP::MPQP, p::AbstractVector)
+    m = mpQP.input_bounds
+    @inbounds for i in eachindex(m.upper_rows)
+        mpQP.bu[m.upper_rows[i]] = clamp(m.upper_offset[i] + m.upper_coef[i]*p[m.upper_ids[i]], -1e30, 1e30)
+    end
+    @inbounds for i in eachindex(m.lower_rows)
+        mpQP.bl[m.lower_rows[i]] = clamp(m.lower_offset[i] + m.lower_coef[i]*p[m.lower_ids[i]], -1e30, 1e30)
+    end
+    return mpQP
+end
+
+"""
     add_constraint!(mpc::MPC;
         Ax, Au, Ar, Aw, Ad, Aup, Ap,
         ub, lb, ks, soft, binary, prio, tighten)

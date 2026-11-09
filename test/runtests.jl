@@ -2930,3 +2930,4 @@ Random.seed!(1234)
         @test_throws ArgumentError make_sd(; withd=true, Sd=ones(1, 2))
     end
 end
+include("test_tunable_input_bounds.jl")
