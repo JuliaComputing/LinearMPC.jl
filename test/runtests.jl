@@ -1418,6 +1418,17 @@ Random.seed!(1234)
             nu = mpc.model.nu
             first_rows = [findfirst(!iszero,view(T,:,j)) for j in mpc.bnb.split_ids]
             @test all(r -> r <= nu, first_rows) && issorted(first_rows)
+            # bnb_split_controls selects and orders the controls
+            nb = length(mpc.binary_controls)
+            order = reverse(mpc.binary_controls)
+            mpc.settings.bnb_split_controls = order
+            setup!(mpc)
+            @test [mod1(findfirst(!iszero,view(T,:,j)),nu) for j in mpc.bnb.split_ids] == order[1:min(2,nb)]
+            mpc.settings.bnb_split_controls = [order[end]]
+            setup!(mpc)
+            @test [mod1(findfirst(!iszero,view(T,:,j)),nu) for j in mpc.bnb.split_ids] == [order[end]]
+            mpc.settings.bnb_split_controls = [nu+1]
+            @test_throws ArgumentError setup!(mpc)
             # Without binary controls there is no split
             mpc,_ = DyadLinearMPC.mpc_examples("invpend")
             mpc.settings.bnb_split = 1

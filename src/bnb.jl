@@ -95,16 +95,20 @@ function new_bnb_workspace(mpc::MPC, b, priority, setting)
 end
 
 # Sets up the workspaces of the setting bnb_split: the first bnb_split binary decision variables of the first time
-# step that are not deferred, in the order of the controls (ctrls and steps of the binary decision variables, see
-# setup_bnb!), and for each combination of their values a workspace per branching rule
+# step that are not deferred, in the order of bnb_split_controls (ctrls and steps of the binary decision variables,
+# see setup_bnb!), and for each combination of their values a workspace per branching rule
 function setup_bnb_split!(mpc::MPC, priority, ctrls, steps)
     k = mpc.settings.bnb_split
     k >= 0 || throw(ArgumentError("The setting bnb_split must be nonnegative"))
+    order = mpc.settings.bnb_split_controls
+    bad = setdiff(order,mpc.binary_controls)
+    isempty(bad) || throw(ArgumentError("bnb_split_controls holds the controls $bad, which are not binary controls"))
     (k == 0 || isempty(mpc.bnb.binary_ids)) && return nothing
     isdefined(DAQP,:solve_parallel) && hasmethod(DAQP.solve_parallel,Tuple{Vector{DyadDAQP.Model}},(:groups,)) ||
         throw(ArgumentError("The setting bnb_split requires a version of DyadDAQP with the keyword groups of solve_parallel"))
-    first_step = [p for p in eachindex(mpc.bnb.binary_ids) if steps[p] == 1 && !mpc.bnb.is_deferred[p]]
-    sort!(first_step, by=p->ctrls[p])
+    isempty(order) && (order = sort(unique(ctrls)))
+    first_step = [p for p in eachindex(mpc.bnb.binary_ids) if steps[p] == 1 && !mpc.bnb.is_deferred[p] && ctrls[p] in order]
+    sort!(first_step, by=p->findfirst(==(ctrls[p]),order))
     length(first_step) < k &&
         @warn "bnb_split = $k, but there are only $(length(first_step)) binary decision variables of the first time step that are not deferred"
     ids = mpc.bnb.binary_ids[first_step[1:min(k,end)]]

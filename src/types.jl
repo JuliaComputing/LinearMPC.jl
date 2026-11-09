@@ -80,7 +80,7 @@ MPC controller settings.
   first of them has explored its tree. The workspaces are set up with the MPC and keep their warm start between
   calls. Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
 - `bnb_split::Int = 0`: Number of binary decision variables of the first time step (that are not deferred, in the
-  order of the controls) on which each branch and bound is split (`0`: no split). For each combination of their
+  order of `bnb_split_controls`) on which each branch and bound is split (`0`: no split). For each combination of their
   values (their lower or upper bound), the branch and bound with these binary decision variables fixed is solved by
   DAQP workspaces of its own, one per branching rule (that of the workspace of the MPC, then those of
   `bnb_portfolio`), each on a thread of its own (`DAQP.solve_parallel` with `groups`, `2^bnb_split` times the
@@ -91,6 +91,8 @@ MPC controller settings.
   bounds are equal has a single value, which halves the number of combinations. The workspaces are set up with
   the MPC and keep their warm start between calls. Requires a version of DyadDAQP with the keyword `groups` of
   `solve_parallel`; generated code solves with the workspace of the MPC only
+- `bnb_split_controls::Vector{Int} = Int[]`: Binary controls (indices of controls) whose binary decision variables of
+  the first time step are candidates for `bnb_split`, in this order (empty: all binary controls in their order)
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
 Base.@kwdef mutable struct MPCSettings
@@ -109,6 +111,7 @@ Base.@kwdef mutable struct MPCSettings
     branch_priority::Vector{Int} = Int[]
     bnb_portfolio::Vector{Int} = Int[]
     bnb_split::Int = 0
+    bnb_split_controls::Vector{Int} = Int[]
     solver_opts::Dict{Symbol,Any} = Dict()
     traj2setpoint::Matrix{Float64} = zeros(0,0)
 end
