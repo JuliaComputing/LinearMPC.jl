@@ -74,6 +74,11 @@ MPC controller settings.
   `branching = 3`. The binary decision variables of a control are ordered by their time step, from the first, or from
   the last for a negative entry `-c` of the control `c`; those of the binary
   controls that are not listed follow in the order of the decision variables
+- `bnb_portfolio::Vector{Int} = Int[]`: Branching rules (values of the setting `branching` of DAQP) of additional
+  DAQP workspaces that solve each branch and bound together with the workspace of the MPC, each on a thread of its
+  own (`DAQP.solve_parallel`): the threads share the best integer-feasible solution, and the solve ends when the
+  first of them has explored its tree. The workspaces are set up with the MPC and keep their warm start between
+  calls. Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
 Base.@kwdef mutable struct MPCSettings
@@ -90,6 +95,7 @@ Base.@kwdef mutable struct MPCSettings
     deferred_max_combinations::Int = 64
     branching::Int = 0
     branch_priority::Vector{Int} = Int[]
+    bnb_portfolio::Vector{Int} = Int[]
     solver_opts::Dict{Symbol,Any} = Dict()
     traj2setpoint::Matrix{Float64} = zeros(0,0)
 end
@@ -159,6 +165,14 @@ struct BnBGroup
     rows::Vector{BnBLogicRow}  # :rounding: the logic constraints of the binary decision variables
 end
 
+# An additional DAQP workspace of the setting bnb_portfolio (see daqp_solve_bnb): its branching rule and the
+# senses that it was last updated with (mpQP.senses or BnBData.relaxed_senses)
+mutable struct BnBPortfolioWorkspace
+    model::DyadDAQP.Model
+    branching::Int
+    senses::Vector{Cint}
+end
+
 # Data of the solution strategies of the branch and bound (see solve_bnb). The binary decision variables are
 # those whose simple bounds have the binary sense.
 mutable struct BnBData
@@ -169,8 +183,9 @@ mutable struct BnBData
     groups::Vector{BnBGroup}      # Their binary decision variables
     is_deferred::Vector{Bool}     # Whether each binary decision variable is deferred
     relaxed_senses::Vector{Cint}  # The senses of the constraints with the deferred binary decision variables relaxed
+    portfolio::Vector{BnBPortfolioWorkspace} # Additional workspaces of the setting bnb_portfolio
 end
-BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[])
+BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[],BnBPortfolioWorkspace[])
 
 # MPC controller
 mutable struct MPC

@@ -1325,6 +1325,55 @@ Random.seed!(1234)
         @test_throws ArgumentError satellite_rule(3; branch_priority=[-1])
     end
 
+    @testset "Portfolio of branching rules" begin
+        DAQPm = DyadLinearMPC.DAQP
+        if !isdefined(DAQPm,:solve_parallel)
+            @info "DyadDAQP without solve_parallel: the tests of bnb_portfolio are skipped"
+        else
+            # The workspace of the MPC and those of bnb_portfolio solve the branch and bound in parallel and give the
+            # optimal solution (abs_subopt = 0), without and with the warm start of the branch and bound
+            function satellite_portfolio(portfolio; warm=false)
+                mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
+                move_block!(mpc,[1,1,2,4,12])
+                mpc.settings.bnb_portfolio = portfolio
+                mpc.settings.bnb_warm_start = warm
+                setup!(mpc)
+                return mpc
+            end
+            θp(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+            for warm in (false, true)
+                ref = satellite_portfolio(Int[]; warm)
+                mpc = satellite_portfolio([1,2]; warm)
+                @test isempty(ref.bnb.portfolio)
+                @test [w.branching for w in mpc.bnb.portfolio] == [1,2]
+                @test [DAQPm.settings(w.model).branching for w in mpc.bnb.portfolio] == [1,2]
+                x = zeros(3)
+                for k in 1:15
+                    θ = θp(ref,x,[k <= 5 ? 0.0 : 0.5,0,0])
+                    z0,f0,flag0,_ = DyadLinearMPC.solve(ref,θ)
+                    z,f,flag,info = DyadLinearMPC.solve(mpc,θ)
+                    @test flag0 >= 1 && flag >= 1
+                    @test f ≈ f0 atol=1e-6*(1+abs(f0))
+                    @test info.nodes > 0
+                    x = ref.model.F*x + ref.model.G*z0[1:3]
+                end
+            end
+            # The workspaces of the portfolio follow the settings of the workspace of the MPC (except branching)
+            mpc = satellite_portfolio([2])
+            DAQPm.settings(mpc.opt_model,Dict(:abs_subopt=>0.5))
+            DyadLinearMPC.solve(mpc,θp(mpc,zeros(3),[0.5,0,0]))
+            st = DAQPm.settings(only(mpc.bnb.portfolio).model)
+            @test st.abs_subopt == 0.5 && st.branching == 2
+            # A new setup sets up new workspaces; without binary controls there are none
+            setup!(mpc)
+            @test length(mpc.bnb.portfolio) == 1
+            mpc,_ = DyadLinearMPC.mpc_examples("invpend")
+            mpc.settings.bnb_portfolio = [2]
+            setup!(mpc)
+            @test isempty(mpc.bnb.portfolio)
+        end
+    end
+
     @testset "Warm start of the branch and bound" begin
         function satellite(warm; abs_subopt=0.0)
             mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)

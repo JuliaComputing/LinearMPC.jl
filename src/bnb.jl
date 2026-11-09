@@ -55,8 +55,59 @@ function setup_bnb!(mpc::MPC)
     for j in binary_ids[is_deferred]
         relaxed_senses[j] &= ~Cint(DAQP.BINARY)
     end
-    mpc.bnb = BnBData(binary_ids,shift_ids,Float64[],deferred,groups,is_deferred,relaxed_senses)
-    set_daqp_branch_priority!(mpc,ctrls,steps)
+    mpc.bnb = BnBData(binary_ids,shift_ids,Float64[],deferred,groups,is_deferred,relaxed_senses,
+                      BnBPortfolioWorkspace[])
+    priority = set_daqp_branch_priority!(mpc,ctrls,steps)
+    setup_bnb_portfolio!(mpc,priority)
+end
+
+# The settings st of DAQP with the branching rule `branching`
+daqp_settings_with_branching(st, branching) =
+    DAQP.DAQPSettings((k == :branching ? Cint(branching) : getfield(st,k) for k in fieldnames(DAQP.DAQPSettings))...)
+
+# Sets up the additional DAQP workspaces of the setting bnb_portfolio (for problems with binary decision
+# variables) with the QP and the settings of the workspace of the MPC; `priority` is the priority list of the
+# branching rule 3 (see set_daqp_branch_priority!)
+function setup_bnb_portfolio!(mpc::MPC, priority)
+    rules = mpc.settings.bnb_portfolio
+    (isempty(rules) || isempty(mpc.bnb.binary_ids)) && return nothing
+    isdefined(DAQP,:solve_parallel) ||
+        throw(ArgumentError("The setting bnb_portfolio requires a version of DyadDAQP with solve_parallel"))
+    for b in rules
+        m = DAQP.Model()
+        # The settings that apply to the setup (e.g. eq_reduction) are those of the workspace of the MPC
+        DAQP.settings(m,daqp_settings_with_branching(DAQP.settings(mpc.opt_model),b))
+        flag = daqp_setup!(m,mpc.mpQP)
+        flag < 0 && throw(ArgumentError("The setup of a workspace of bnb_portfolio failed with the flag $flag"))
+        DAQP.settings(m,daqp_settings_with_branching(DAQP.settings(mpc.opt_model),b))
+        b == 3 && !isempty(priority) && DAQP.set_branch_priority(m,priority)
+        push!(mpc.bnb.portfolio,BnBPortfolioWorkspace(m,b,mpc.mpQP.senses))
+    end
+    return nothing
+end
+
+# Solves the DAQP model of the MPC, whose f and bounds are those of mpQP._f, mpQP._bu and mpQP._bl and whose
+# senses are `senses`, by its branch and bound together with the workspaces of the setting bnb_portfolio if there
+# are any (DAQP.solve_parallel). These are updated with the same QP and the current settings of the workspace of
+# the MPC with their branching rules. If DAQP rejects them (e.g. after a change of a setting that applies to the
+# setup), the workspace of the MPC is solved alone.
+function daqp_solve_bnb(mpc::MPC, senses)
+    P = mpc.bnb.portfolio
+    isempty(P) && return DAQP.solve(mpc.opt_model)
+    mpQP = mpc.mpQP
+    st = DAQP.settings(mpc.opt_model)
+    for w in P
+        DAQP.settings(w.model,daqp_settings_with_branching(st,w.branching))
+        DAQP.update(w.model,nothing,mpQP._f,nothing,mpQP._bu,mpQP._bl,w.senses === senses ? nothing : senses)
+        w.senses = senses
+    end
+    try
+        return DAQP.solve_parallel([mpc.opt_model; [w.model for w in P]])
+    catch e
+        e isa ArgumentError || rethrow()
+        @warn "The workspaces of bnb_portfolio are not compatible with the workspace of the MPC, which is solved alone" maxlog=1 exception=e
+        return DAQP.solve(mpc.opt_model)
+    end
 end
 
 # The priority of the binary decision variables for the branching rule 3 of DAQP (setting branch_priority): the
@@ -64,11 +115,11 @@ end
 # of the binary decision variables, see setup_bnb!)
 function set_daqp_branch_priority!(mpc::MPC,ctrls,steps)
     prio = mpc.settings.branch_priority
-    isempty(prio) && return nothing
+    isempty(prio) && return Int[]
     bad = setdiff(abs.(prio),mpc.binary_controls)
     isempty(bad) || throw(ArgumentError("branch_priority holds the controls $bad, which are not binary controls"))
     B = mpc.bnb.binary_ids
-    isempty(B) && return nothing
+    isempty(B) && return Int[]
     ids = Int[]
     for c in prio
         # A negative entry -c orders the binary decision variables of control c from the latest time step
@@ -76,7 +127,7 @@ function set_daqp_branch_priority!(mpc::MPC,ctrls,steps)
         append!(ids,B[sort!(p,by=k->steps[k],rev=c<0)])
     end
     DAQP.set_branch_priority(mpc.opt_model,ids)
-    return nothing
+    return ids
 end
 
 # The binary decision variables of the group d, given the control (ctrls), the first step (steps) and the
@@ -327,7 +378,8 @@ function bnb_qp!(mpc::MPC, s::BnBSolve; fix_ids=Int[], fix_vals=Float64[], relax
     end
     isempty(changes) || DAQP.settings(model,changes)
     DAQP.update(model,nothing,mpQP._f,nothing,mpQP._bu,mpQP._bl,senses)
-    x,fval,flag,info = DAQP.solve(model)
+    x,fval,flag,info = search ? daqp_solve_bnb(mpc, s.relaxed ? mpc.bnb.relaxed_senses : mpQP.senses) :
+        DAQP.solve(model)
     isempty(changes) || DAQP.settings(model,s.settings)
     s.iterations += info.iterations
     s.nodes += info.nodes

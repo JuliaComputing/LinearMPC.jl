@@ -323,7 +323,7 @@ function solve(mpc::MPC,θ)
     mul!(mpc.mpQP._f, mpc.mpQP.f_theta, θ)
     mpc.mpQP._f .+= mpc.mpQP.f
     DAQP.update(mpc.opt_model,nothing,mpc.mpQP._f,nothing,mpc.mpQP._bu,mpc.mpQP._bl,nothing)
-    return DAQP.solve(mpc.opt_model)
+    return daqp_solve_bnb(mpc,mpc.mpQP.senses)
 end
 
 "Number of equality constraints of the QP `mpQP`"

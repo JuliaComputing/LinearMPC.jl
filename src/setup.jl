@@ -7,11 +7,7 @@ Internally, this means generating an mpQP, and setting up a DAQP workspace.
 function setup!(mpc::MPC)
     mpc.mpqp_issetup = false  # Reset so get_parameter_dims computes from settings
     mpc.mpQP = mpc2mpqp(mpc)
-    bu,bl = mpc.mpQP.bu[:],mpc.mpQP.bl[:]
-    H = isnothing(mpc.mpQP.Hchol) ? mpc.mpQP.H : mpc.mpQP.Hchol # (A factor is more accurate)
-    setup_flag,_ = DAQP.setup(mpc.opt_model, H,mpc.mpQP.f[:],mpc.mpQP.A,bu,bl,
-                              mpc.mpQP.senses;break_points=mpc.mpQP.break_points, 
-                              is_avi=!mpc.mpQP.is_symmetric)
+    setup_flag = daqp_setup!(mpc.opt_model, mpc.mpQP)
     if(setup_flag < 0)
         if setup_flag == -1
             @warn " Cannot setup optimization problem - Problem is infeasible"
@@ -29,6 +25,16 @@ function setup!(mpc::MPC)
         setup_bnb!(mpc)
         mpc.mpqp_issetup = true
     end
+end
+
+# Sets up the DAQP model `model` with the QP mpQP (for the parameter zero). Returns the flag of DAQP.setup
+function daqp_setup!(model::DAQP.Model, mpQP::MPQP)
+    bu,bl = mpQP.bu[:],mpQP.bl[:]
+    H = isnothing(mpQP.Hchol) ? mpQP.H : mpQP.Hchol # (A factor is more accurate)
+    setup_flag,_ = DAQP.setup(model, H,mpQP.f[:],mpQP.A,bu,bl,
+                              mpQP.senses;break_points=mpQP.break_points,
+                              is_avi=!mpQP.is_symmetric)
+    return setup_flag
 end
 
 """
