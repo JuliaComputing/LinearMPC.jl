@@ -1374,6 +1374,58 @@ Random.seed!(1234)
         end
     end
 
+    @testset "First-move split of the branch and bound" begin
+        DAQPm = DyadLinearMPC.DAQP
+        if !isdefined(DAQPm,:solve_parallel) || !hasmethod(DAQPm.solve_parallel,Tuple{Vector{DAQPm.Model}},(:groups,))
+            @info "DyadDAQP without the keyword groups of solve_parallel: the tests of bnb_split are skipped"
+        else
+            # One group of threads per combination of the binary decision variables of the first time step gives
+            # the optimal solution (abs_subopt = 0), with and without bnb_portfolio and the warm start
+            function satellite_split(split, portfolio; warm=false)
+                mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
+                move_block!(mpc,[1,1,2,4,12])
+                mpc.settings.bnb_split = split
+                mpc.settings.bnb_portfolio = portfolio
+                mpc.settings.bnb_warm_start = warm
+                setup!(mpc)
+                DAQPm.settings(mpc.opt_model,Dict(:abs_subopt=>0.0,:rel_subopt=>0.0))
+                return mpc
+            end
+            θp(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+            for warm in (false, true), split in (1, 2), portfolio in (Int[], [2])
+                ref = satellite_split(0, Int[]; warm)
+                mpc = satellite_split(split, portfolio; warm)
+                ids = mpc.bnb.split_ids
+                @test length(ids) == split
+                @test length(mpc.bnb.split) == 2^split
+                @test all(ws -> [w.branching for w in ws] == [-1; portfolio], mpc.bnb.split)
+                @test all(j -> j in mpc.bnb.binary_ids, ids)
+                x = zeros(3)
+                for k in 1:15
+                    θ = θp(ref,x,[k <= 5 ? 0.0 : 0.5,0,0])
+                    z0,f0,flag0,_ = DyadLinearMPC.solve(ref,θ)
+                    z,f,flag,info = DyadLinearMPC.solve(mpc,θ)
+                    @test flag0 == DAQPm.OPTIMAL && flag == DAQPm.OPTIMAL
+                    @test f ≈ f0 atol=1e-6*(1+abs(f0))
+                    @test info.nodes > 0
+                    x = ref.model.F*x + ref.model.G*z0[1:3]
+                end
+            end
+            # The split binary decision variables are those of the first time step, in the order of the controls
+            mpc = satellite_split(2, Int[])
+            B = mpc.bnb.binary_ids
+            T = first(DyadLinearMPC.move_block_matrix(mpc))
+            nu = mpc.model.nu
+            first_rows = [findfirst(!iszero,view(T,:,j)) for j in mpc.bnb.split_ids]
+            @test all(r -> r <= nu, first_rows) && issorted(first_rows)
+            # Without binary controls there is no split
+            mpc,_ = DyadLinearMPC.mpc_examples("invpend")
+            mpc.settings.bnb_split = 1
+            setup!(mpc)
+            @test isempty(mpc.bnb.split)
+        end
+    end
+
     @testset "Warm start of the branch and bound" begin
         function satellite(warm; abs_subopt=0.0)
             mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)

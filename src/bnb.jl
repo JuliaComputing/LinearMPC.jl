@@ -56,9 +56,10 @@ function setup_bnb!(mpc::MPC)
         relaxed_senses[j] &= ~Cint(DAQP.BINARY)
     end
     mpc.bnb = BnBData(binary_ids,shift_ids,Float64[],deferred,groups,is_deferred,relaxed_senses,
-                      BnBPortfolioWorkspace[])
+                      BnBPortfolioWorkspace[],Int[],Vector{BnBPortfolioWorkspace}[])
     priority = set_daqp_branch_priority!(mpc,ctrls,steps)
     setup_bnb_portfolio!(mpc,priority)
+    setup_bnb_split!(mpc,priority,ctrls,steps)
 end
 
 # The settings st of DAQP with the branching rule `branching`
@@ -74,38 +75,123 @@ function setup_bnb_portfolio!(mpc::MPC, priority)
     isdefined(DAQP,:solve_parallel) ||
         throw(ArgumentError("The setting bnb_portfolio requires a version of DyadDAQP with solve_parallel"))
     for b in rules
-        m = DAQP.Model()
-        # The settings that apply to the setup (e.g. eq_reduction) are those of the workspace of the MPC
-        DAQP.settings(m,daqp_settings_with_branching(DAQP.settings(mpc.opt_model),b))
-        flag = daqp_setup!(m,mpc.mpQP)
-        flag < 0 && throw(ArgumentError("The setup of a workspace of bnb_portfolio failed with the flag $flag"))
-        DAQP.settings(m,daqp_settings_with_branching(DAQP.settings(mpc.opt_model),b))
-        b == 3 && !isempty(priority) && DAQP.set_branch_priority(m,priority)
-        push!(mpc.bnb.portfolio,BnBPortfolioWorkspace(m,b,mpc.mpQP.senses))
+        push!(mpc.bnb.portfolio,new_bnb_workspace(mpc,b,priority,"bnb_portfolio"))
     end
+    return nothing
+end
+
+# A DAQP workspace set up with the QP and the settings of the workspace of the MPC, with the branching rule b
+# (-1: that of the workspace of the MPC)
+function new_bnb_workspace(mpc::MPC, b, priority, setting)
+    m = DAQP.Model()
+    st = DAQP.settings(mpc.opt_model)
+    # The settings that apply to the setup (e.g. eq_reduction) are those of the workspace of the MPC
+    DAQP.settings(m,daqp_settings_with_branching(st,b < 0 ? st.branching : b))
+    flag = daqp_setup!(m,mpc.mpQP)
+    flag < 0 && throw(ArgumentError("The setup of a workspace of $setting failed with the flag $flag"))
+    DAQP.settings(m,daqp_settings_with_branching(st,b < 0 ? st.branching : b))
+    isempty(priority) || DAQP.set_branch_priority(m,priority)
+    return BnBPortfolioWorkspace(m,b,mpc.mpQP.senses)
+end
+
+# Sets up the workspaces of the setting bnb_split: the first bnb_split binary decision variables of the first time
+# step that are not deferred, in the order of the controls (ctrls and steps of the binary decision variables, see
+# setup_bnb!), and for each combination of their values a workspace per branching rule
+function setup_bnb_split!(mpc::MPC, priority, ctrls, steps)
+    k = mpc.settings.bnb_split
+    k >= 0 || throw(ArgumentError("The setting bnb_split must be nonnegative"))
+    (k == 0 || isempty(mpc.bnb.binary_ids)) && return nothing
+    isdefined(DAQP,:solve_parallel) && hasmethod(DAQP.solve_parallel,Tuple{Vector{DyadDAQP.Model}},(:groups,)) ||
+        throw(ArgumentError("The setting bnb_split requires a version of DyadDAQP with the keyword groups of solve_parallel"))
+    first_step = [p for p in eachindex(mpc.bnb.binary_ids) if steps[p] == 1 && !mpc.bnb.is_deferred[p]]
+    sort!(first_step, by=p->ctrls[p])
+    length(first_step) < k &&
+        @warn "bnb_split = $k, but there are only $(length(first_step)) binary decision variables of the first time step that are not deferred"
+    ids = mpc.bnb.binary_ids[first_step[1:min(k,end)]]
+    isempty(ids) && return nothing
+    rules = [-1; mpc.settings.bnb_portfolio]
+    mpc.bnb.split_ids = ids
+    mpc.bnb.split = [[new_bnb_workspace(mpc,b,priority,"bnb_split") for b in rules] for _ in 1:2^length(ids)]
     return nothing
 end
 
 # Solves the DAQP model of the MPC, whose f and bounds are those of mpQP._f, mpQP._bu and mpQP._bl and whose
 # senses are `senses`, by its branch and bound together with the workspaces of the setting bnb_portfolio if there
-# are any (DAQP.solve_parallel). These are updated with the same QP and the current settings of the workspace of
-# the MPC with their branching rules. If DAQP rejects them (e.g. after a change of a setting that applies to the
-# setup), the workspace of the MPC is solved alone.
+# are any (DAQP.solve_parallel), or with those of the setting bnb_split (see daqp_solve_split). These are updated
+# with the same QP and the current settings of the workspace of the MPC with their branching rules. If DAQP
+# rejects them (e.g. after a change of a setting that applies to the setup), the workspace of the MPC is solved
+# alone.
 function daqp_solve_bnb(mpc::MPC, senses)
+    isempty(mpc.bnb.split) || return daqp_solve_split(mpc, senses)
     P = mpc.bnb.portfolio
     isempty(P) && return DAQP.solve(mpc.opt_model)
     mpQP = mpc.mpQP
     st = DAQP.settings(mpc.opt_model)
     for w in P
-        DAQP.settings(w.model,daqp_settings_with_branching(st,w.branching))
-        DAQP.update(w.model,nothing,mpQP._f,nothing,mpQP._bu,mpQP._bl,w.senses === senses ? nothing : senses)
-        w.senses = senses
+        update_bnb_workspace!(w, st, mpQP._f, mpQP._bu, mpQP._bl, senses)
     end
     try
         return DAQP.solve_parallel([mpc.opt_model; [w.model for w in P]])
     catch e
         e isa ArgumentError || rethrow()
         @warn "The workspaces of bnb_portfolio are not compatible with the workspace of the MPC, which is solved alone" maxlog=1 exception=e
+        return DAQP.solve(mpc.opt_model)
+    end
+end
+
+# Updates the workspace w with the settings st (with its branching rule), the linear term f, the bounds and the
+# senses
+function update_bnb_workspace!(w::BnBPortfolioWorkspace, st, f, bu, bl, senses)
+    DAQP.settings(w.model,daqp_settings_with_branching(st,w.branching < 0 ? st.branching : w.branching))
+    DAQP.update(w.model,nothing,f,nothing,bu,bl,w.senses === senses ? nothing : senses)
+    w.senses = senses
+    return nothing
+end
+
+# The branch and bound of the setting bnb_split: one group of threads per combination of the values of the binary
+# decision variables split_ids (their bounds mpQP._bl or mpQP._bu, a single value if these are equal), in which
+# they are fixed, with a workspace per branching rule (DAQP.solve_parallel with groups). The workspace of the MPC
+# replaces the workspace of its branching rule of the combination of the solution of the previous call (that of
+# the candidate of bnb_warm_start, whose working set it holds), or of the lower bounds if there is none.
+function daqp_solve_split(mpc::MPC, senses)
+    mpQP,bnb = mpc.mpQP,mpc.bnb
+    ids = bnb.split_ids
+    bu,bl = mpQP._bu,mpQP._bl
+    any(j -> bl[j] > bu[j], ids) && return DAQP.solve(mpc.opt_model) # Infeasible bounds (reported by DAQP)
+    own = 0 # The combination of the workspace of the MPC
+    if length(bnb.xprev) == length(mpQP.f)
+        for (k,j) in enumerate(ids)
+            p = findfirst(==(j),bnb.binary_ids)
+            v = nearest_bound(bnb.xprev[bnb.shift_ids[p]],bl[j],bu[j])
+            v == bu[j] && bu[j] != bl[j] && (own |= 1 << (k-1))
+        end
+    end
+    st = DAQP.settings(mpc.opt_model)
+    models,groups = DyadDAQP.Model[mpc.opt_model],Int[1]
+    cbu,cbl = copy(bu),copy(bl)
+    for c in [own; setdiff(0:length(bnb.split)-1,own)]
+        # A binary decision variable with equal bounds has a single value (bit 0)
+        any(k -> (c >> (k-1)) & 1 == 1 && bu[ids[k]] == bl[ids[k]], eachindex(ids)) && continue
+        for (k,j) in enumerate(ids)
+            cbu[j] = cbl[j] = (c >> (k-1)) & 1 == 1 ? bu[j] : bl[j]
+        end
+        g = groups[end] + (c != own)
+        if c == own
+            DAQP.update(mpc.opt_model,nothing,nothing,nothing,cbu,cbl,nothing)
+        end
+        for (r,w) in enumerate(bnb.split[c+1])
+            c == own && r == 1 && continue # Replaced by the workspace of the MPC
+            update_bnb_workspace!(w, st, mpQP._f, cbu, cbl, senses)
+            push!(models,w.model)
+            push!(groups,g)
+        end
+    end
+    try
+        return DAQP.solve_parallel(models; groups)
+    catch e
+        e isa ArgumentError || rethrow()
+        @warn "The workspaces of bnb_split are not compatible with the workspace of the MPC, which is solved alone" maxlog=1 exception=e
+        DAQP.update(mpc.opt_model,nothing,nothing,nothing,bu,bl,nothing)
         return DAQP.solve(mpc.opt_model)
     end
 end

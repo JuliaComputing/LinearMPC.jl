@@ -79,6 +79,18 @@ MPC controller settings.
   own (`DAQP.solve_parallel`): the threads share the best integer-feasible solution, and the solve ends when the
   first of them has explored its tree. The workspaces are set up with the MPC and keep their warm start between
   calls. Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
+- `bnb_split::Int = 0`: Number of binary decision variables of the first time step (that are not deferred, in the
+  order of the controls) on which each branch and bound is split (`0`: no split). For each combination of their
+  values (their lower or upper bound), the branch and bound with these binary decision variables fixed is solved by
+  DAQP workspaces of its own, one per branching rule (that of the workspace of the MPC, then those of
+  `bnb_portfolio`), each on a thread of its own (`DAQP.solve_parallel` with `groups`, `2^bnb_split` times the
+  number of rules). The threads share the best integer-feasible solution; the search of a combination is complete
+  when one of its threads has explored its tree, and the solve is optimal when the searches of all combinations are
+  complete. The workspace of the MPC searches the combination of the solution of the previous call (that of the
+  candidate of `bnb_warm_start`), or that of the lower bounds if there is none. A binary decision variable whose
+  bounds are equal has a single value, which halves the number of combinations. The workspaces are set up with
+  the MPC and keep their warm start between calls. Requires a version of DyadDAQP with the keyword `groups` of
+  `solve_parallel`; generated code solves with the workspace of the MPC only
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
 Base.@kwdef mutable struct MPCSettings
@@ -96,6 +108,7 @@ Base.@kwdef mutable struct MPCSettings
     branching::Int = 0
     branch_priority::Vector{Int} = Int[]
     bnb_portfolio::Vector{Int} = Int[]
+    bnb_split::Int = 0
     solver_opts::Dict{Symbol,Any} = Dict()
     traj2setpoint::Matrix{Float64} = zeros(0,0)
 end
@@ -165,8 +178,9 @@ struct BnBGroup
     rows::Vector{BnBLogicRow}  # :rounding: the logic constraints of the binary decision variables
 end
 
-# An additional DAQP workspace of the setting bnb_portfolio (see daqp_solve_bnb): its branching rule and the
-# senses that it was last updated with (mpQP.senses or BnBData.relaxed_senses)
+# An additional DAQP workspace of the setting bnb_portfolio or bnb_split (see daqp_solve_bnb): its branching rule
+# (-1 for that of the workspace of the MPC) and the senses that it was last updated with (mpQP.senses or
+# BnBData.relaxed_senses)
 mutable struct BnBPortfolioWorkspace
     model::DyadDAQP.Model
     branching::Int
@@ -184,8 +198,13 @@ mutable struct BnBData
     is_deferred::Vector{Bool}     # Whether each binary decision variable is deferred
     relaxed_senses::Vector{Cint}  # The senses of the constraints with the deferred binary decision variables relaxed
     portfolio::Vector{BnBPortfolioWorkspace} # Additional workspaces of the setting bnb_portfolio
+    split_ids::Vector{Int}  # The binary decision variables of the setting bnb_split
+    # For each combination of their values (bit k set: split_ids[k] at its upper bound), a workspace per branching
+    # rule: that of the workspace of the MPC, then those of bnb_portfolio
+    split::Vector{Vector{BnBPortfolioWorkspace}}
 end
-BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[],BnBPortfolioWorkspace[])
+BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[],BnBPortfolioWorkspace[],
+                    Int[],Vector{BnBPortfolioWorkspace}[])
 
 # MPC controller
 mutable struct MPC
