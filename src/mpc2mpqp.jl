@@ -30,8 +30,8 @@ has_input_bounds(mpc::MPC) = !isempty(mpc.umax) || mpc.settings.tunable_input_bo
 # The input bounds of `mpc`, with the absent bounds at ±1e30
 function input_bound_vectors(mpc::MPC)
     nu = mpc.model.nu
-    umin = isempty(mpc.umin) ? fill(-1e30,nu) : clamp.(mpc.umin,-1e30,1e30)
-    umax = isempty(mpc.umax) ? fill(1e30,nu) : clamp.(mpc.umax,-1e30,1e30)
+    umin = isempty(mpc.umin) ? fill(-1e30,nu) : copy(mpc.umin)
+    umax = isempty(mpc.umax) ? fill(1e30,nu) : copy(mpc.umax)
     return umin, umax
 end
 
@@ -788,7 +788,7 @@ Consider instead to:
         constraints = remove_duplicate(constraints)
     end
 
-    return MPQP(objective,constraints;p=vcat(input_bound_vectors(mpc)...))
+    return MPQP(objective,constraints;p=clamp.(vcat(input_bound_vectors(mpc)...),-1e30,1e30))
 end
 
 function create_extended_system(mpc::MPC)
@@ -952,9 +952,10 @@ function remove_duplicate(c::DenseConstraints)
 
     nsimple = length(bu) - size(A,1)
     idsA = nsimple+1:length(bu)
-    # (Rows are duplicates only if their bounds depend on the input bounds in the same way, then the
-    # minimum of the upper bounds is that of their constant parts)
-    Aext = [A W[idsA,:] c.Pu[idsA,:] c.Pl[idsA,:] issoft[idsA] isbinary[idsA] prio[idsA]]
+    # (Rows whose bounds depend on the input bounds are not merged: the rounding below could equate a
+    # small dependence with none, and the minimum of the bounds would then depend on the input bounds)
+    tunable_tag = [iszero(view(c.Pu,i,:)) && iszero(view(c.Pl,i,:)) ? 0.0 : Float64(i) for i in idsA]
+    Aext = [A W[idsA,:] tunable_tag issoft[idsA] isbinary[idsA] prio[idsA]]
     duplicate_map = find_duplicate_rows(Aext)
 
     if(length(duplicate_map) == size(A,1)) # No duplicates

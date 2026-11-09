@@ -41,8 +41,9 @@ int mpc_compute_control(c_float* control, c_float* state, c_float* reference, c_
     daqp_deactivate_constraints(&daqp_work);
     reset_daqp_workspace(&daqp_work);
 #endif
-// Ensure equalities are activiated on the first round
-#if N_EQUALITY > 0
+// Ensure equalities are activiated on the first round (and after a change of the input bounds,
+// which can make bounds equal)
+#if N_EQUALITY > 0 || defined(MPC_TUNABLE_INPUT_BOUNDS)
     if(daqp_work.n_active == 0) daqp_activate_constraints(&daqp_work);
 #endif
 #ifdef DAQP_BNB

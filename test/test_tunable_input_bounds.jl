@@ -38,6 +38,37 @@ function tib_compare(kw, b0, b1)
     return mpc
 end
 
+# A compiled controller, with the setter and the solve
+function tib_clib(mpc, ::Type{T} = Cdouble) where {T}
+    float_type = T == Cdouble ? "double" : "float"
+    srcdir = tempname()
+    DyadLinearMPC.codegen(mpc; dir = srcdir, float_type)
+    src = [f for f in readdir(srcdir) if last(f, 1) == "c"]
+    lib = "mpctib." * Base.Libc.Libdl.dlext
+    run(Cmd(`gcc -lm -fPIC -O3 -xc -shared -o $lib $src`; dir = srcdir))
+    h = Base.Libc.Libdl.dlopen(joinpath(srcdir, lib), Base.Libc.Libdl.RTLD_LOCAL)
+    setb = Base.Libc.Libdl.dlsym(h, :mpc_set_input_bounds)
+    comp = Base.Libc.Libdl.dlsym(h, :mpc_compute_control)
+    set!(umin, umax) = ccall(setb, Cint, (Ptr{T}, Ptr{T}), T.(umin), T.(umax))
+    function control(x, nr, nu)
+        u = zeros(T, nu)
+        flag = ccall(comp, Cint, (Ptr{T}, Ptr{T}, Ptr{T}, Ptr{T}), u, T.(x), zeros(T, nr), zeros(T, 0))
+        return Float64.(u), flag
+    end
+    return (; h, set!, control)
+end
+
+
+# An MPC of a scalar system with the input bounds [lo, hi]
+function scalar_mpc(lo, hi)
+    mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; Np = 1, Nc = 1)
+    set_objective!(mpc; Q = [1.0], R = [1.0])
+    settings!(mpc; reference_tracking = false, tunable_input_bounds = true)
+    set_input_bounds!(mpc; umin = [lo], umax = [hi])
+    setup!(mpc)
+    return mpc
+end
+
 @testset "Tunable input bounds" begin
     b0 = ([-1.0, -1.0], [1.0, 1.0])
     b1 = ([-0.3, -0.5], [0.2, 0.8])
@@ -101,30 +132,60 @@ end
         @test_throws ArgumentError update_input_bounds!(mpc; umin = [-0.3, -1.0], umax = [0.2, 1.0])
     end
 
+    @testset "Duplicate rows with tunable bounds are not merged" begin
+        A = [1.0 0.0; 1.0 0.0]
+        c = DyadLinearMPC.DenseConstraints(zeros(0, 2), [0.0, 0.2], [0.0, -0.2], zeros(2, 1),
+                                           falses(2), falses(2), Cint[0, 0], [1e-7 0.0; 0.0 0.0], zeros(2, 2))
+        c = DyadLinearMPC.DenseConstraints(A, c.bu, c.bl, c.W, c.issoft, c.isbinary, c.prio, c.Pu, c.Pl)
+        @test length(DyadLinearMPC.remove_duplicate(c).bu) == 2
+        cf = DyadLinearMPC.DenseConstraints(A, [0.1, 0.2], [-0.1, -0.2], zeros(2, 1), falses(2), falses(2), Cint[0, 0])
+        @test length(DyadLinearMPC.remove_duplicate(cf).bu) == 1
+    end
+
     @testset "Codegen" begin
         if !isnothing(Sys.which("gcc"))
-            for kw in ((;), (; K = true), (; block = 2))
-                mpc = tib_mpc(; umin = b0[1], umax = b0[2], kw...)
-                srcdir = tempname()
-                DyadLinearMPC.codegen(mpc; dir = srcdir)
-                src = [f for f in readdir(srcdir) if last(f, 1) == "c"]
-                lib = "mpctib." * Base.Libc.Libdl.dlext
-                run(Cmd(`gcc -lm -fPIC -O3 -xc -shared -o $lib $src`; dir = srcdir))
-                h = Base.Libc.Libdl.dlopen(joinpath(srcdir, lib), Base.Libc.Libdl.RTLD_LOCAL)
-                setb = Base.Libc.Libdl.dlsym(h, :mpc_set_input_bounds)
-                comp = Base.Libc.Libdl.dlsym(h, :mpc_compute_control)
-                for (bounds, ok) in ((b1, true), (([-Inf, -Inf], [Inf, Inf]), true), (b0, true))
-                    ccall(setb, Cvoid, (Ptr{Cdouble}, Ptr{Cdouble}), bounds[1], bounds[2])
+            for kw in ((;), (; K = true), (; block = 2), (; binary = true))
+                bb0, bb1 = haskey(kw, :binary) ? (([-1.0, 0.0], [1.0, 1.0]), ([-0.3, 0.0], [0.2, 1.0])) : (b0, b1)
+                mpc = tib_mpc(; umin = bb0[1], umax = bb0[2], kw...)
+                lib = tib_clib(mpc)
+                for bounds in (bb1, ([-Inf, bb1[1][2]], [Inf, bb1[2][2]]), ([0.1, bb1[1][2]], [0.1, bb1[2][2]]), bb0)
+                    @test lib.set!(bounds...) == 0
                     update_input_bounds!(mpc; umin = bounds[1], umax = bounds[2])
                     for x in TIB_X
-                        u = zeros(2)
-                        ccall(comp, Cint, (Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}),
-                              u, x, zeros(2), zeros(0))
+                        u, flag = lib.control(x, 2, 2)
+                        @test flag >= 1
                         @test u ≈ compute_control(mpc, x; uprev = zeros(2)) atol = 1e-6
                     end
                 end
-                Base.Libc.Libdl.dlclose(h)
+                # Invalid bounds are rejected without a change
+                @test lib.set!([0.5, bb0[1][2]], [0.0, bb0[2][2]]) == -1
+                @test lib.set!([NaN, bb0[1][2]], bb0[2]) == -1
+                haskey(kw, :binary) && @test lib.set!([-0.3, -1.0], [0.2, 1.0]) == -2
+                @test lib.control(TIB_X[1], 2, 2)[1] ≈ compute_control(mpc, TIB_X[1]; uprev = zeros(2)) atol = 1e-6
+                Base.Libc.Libdl.dlclose(lib.h)
             end
+
+            # Bounds that are equal at the generation, and that become equal
+            lib = tib_clib(scalar_mpc(0.2, 0.2))
+            @test lib.control([0.0], 0, 1)[1] ≈ [0.2] atol = 1e-8
+            @test lib.set!([0.3], [0.4]) == 0
+            @test lib.control([0.0], 0, 1)[1] ≈ [0.3] atol = 1e-8
+            @test lib.control([-1.0], 0, 1)[1] ≈ [0.4] atol = 1e-8
+            @test lib.set!([-1.0], [1.0]) == 0
+            @test lib.control([0.4], 0, 1)[1] ≈ [-0.2] atol = 1e-8
+            @test lib.set!([-0.5], [-0.5]) == 0
+            @test lib.control([0.0], 0, 1)[1] ≈ [-0.5] atol = 1e-8
+            Base.Libc.Libdl.dlclose(lib.h)
+
+            # Single precision
+            mpc = tib_mpc(; umin = b0[1], umax = b0[2])
+            lib = tib_clib(mpc, Cfloat)
+            @test lib.set!(b1...) == 0
+            update_input_bounds!(mpc; umin = b1[1], umax = b1[2])
+            for x in TIB_X
+                @test lib.control(x, 2, 2)[1] ≈ compute_control(mpc, x; uprev = zeros(2)) atol = 1e-3
+            end
+            Base.Libc.Libdl.dlclose(lib.h)
         end
     end
 end

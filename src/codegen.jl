@@ -48,8 +48,10 @@ Generates C code for `mpc` in the directory `dir`. The control is computed by th
   has no effect without groups, without binary controls or with a prestabilizing feedback.
 
 With the setting `tunable_input_bounds`, the generated header declares
-`mpc_set_input_bounds(c_float* umin, c_float* umax)`, which changes the input bounds as
+`int mpc_set_input_bounds(c_float* umin, c_float* umax)`, which changes the input bounds as
 [`update_input_bounds!`](@ref) does; the new bounds apply from the next call of `mpc_compute_control`.
+It returns 0, or, without a change, -1 if a bound is NaN or `umin > umax` and -2 if a bound of a binary
+control differs from its value at the generation.
 """
 function codegen(mpc::MPC;fname="mpc_workspace", dir="codegen", opt_settings=nothing, src=true, float_type="double",warm_start=false,
                  bnb_warm_start=mpc.settings.bnb_warm_start, bnb_deferred=true)
@@ -316,26 +318,37 @@ function daqp_diagonal_factor(d::DAQP.Model)
 end
 
 # Data of the constraints whose bounds depend on the input bounds (setting tunable_input_bounds, see
-# mpc_input_bounds.c), in the coordinates of the LDP: du[row] = offset + coef*p[id] with p = [umin; umax]
+# mpc_input_bounds.c): the bound of a row is offset + coef*p[id] in the coordinates of the QP, with
+# p = [umin; umax], and (bound + shift)*invscale in the coordinates of the LDP (see qp2ldp). The bounds of
+# the binary controls are fixed.
 function render_input_bound_data(mpc,mpLDP,fh,fsrc)
     ib = mpc.mpQP.input_bounds
-    s(r) = mpLDP.scaling[r] > 0 ? mpLDP.scaling[r] : 1.0
+    invscale(r) = mpLDP.scaling[r] > 0 ? 1/mpLDP.scaling[r] : 1.0
     padded(a) = isempty(a) ? zeros(eltype(a),1) : a
+    function write_array(name, a, isint)
+        a = padded(a)
+        @printf(fh, "extern %s %s[%d];\n", isint ? "int" : "c_float", name, length(a))
+        isint ? write_int_array(fsrc,a,name) : write_float_array(fsrc,Float64.(a),name)
+    end
     @printf(fh, "#define MPC_TUNABLE_INPUT_BOUNDS 1\n")
     @printf(fh, "#define MPC_BOUND_INF ((c_float)1e30)\n")
     for (side,rows,ids,coef,offset) in (("upper",ib.upper_rows,ib.upper_ids,ib.upper_coef,ib.upper_offset),
                                         ("lower",ib.lower_rows,ib.lower_ids,ib.lower_coef,ib.lower_offset))
-        n = length(rows)
-        @printf(fh, "#define N_INPUT_BOUND_%s %d\n", uppercase(side), n)
-        ldp_offset = [(offset[i] + mpLDP.Δd[rows[i]])/s(rows[i]) for i in 1:n]
-        ldp_coef = [coef[i]/s(rows[i]) for i in 1:n]
-        for (name,a,isint) in (("rows",rows.-1,true),("ids",ids.-1,true),("coef",ldp_coef,false),("offset",ldp_offset,false))
-            a = padded(a)
-            @printf(fh, "extern %s input_bound_%s_%s[%d];\n", isint ? "int" : "c_float", side, name, length(a))
-            isint ? write_int_array(fsrc,a,"input_bound_$(side)_$name") : write_float_array(fsrc,Float64.(a),"input_bound_$(side)_$name")
-        end
+        @printf(fh, "#define N_INPUT_BOUND_%s %d\n", uppercase(side), length(rows))
+        write_array("input_bound_$(side)_rows", rows.-1, true)
+        write_array("input_bound_$(side)_ids", ids.-1, true)
+        write_array("input_bound_$(side)_coef", coef, false)
+        write_array("input_bound_$(side)_offset", offset, false)
+        write_array("input_bound_$(side)_shift", mpLDP.Δd[rows], false)
+        write_array("input_bound_$(side)_invscale", invscale.(rows), false)
     end
-    @printf(fh, "void mpc_set_input_bounds(c_float* umin, c_float* umax);\n\n")
+    fixed = sort(intersect(mpc.binary_controls, 1:mpc.model.nu))
+    umin, umax = input_bound_vectors(mpc)
+    @printf(fh, "#define N_INPUT_BOUND_FIXED %d\n", length(fixed))
+    write_array("input_bound_fixed_ids", fixed.-1, true)
+    write_array("input_bound_fixed_lower", umin[fixed], false)
+    write_array("input_bound_fixed_upper", umax[fixed], false)
+    @printf(fh, "int mpc_set_input_bounds(c_float* umin, c_float* umax);\n\n")
 end
 
 # Data of the warm start of the branch and bound in the generated code (see mpc_bnb_warm_start.c):
