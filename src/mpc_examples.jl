@@ -399,7 +399,7 @@ function _build_mpc_example(::Val{:invpend_contact}, Np, Nc; settings=nothing, k
     Rr = zeros(7)
     Qf, ~ = ared(mpc.model.F, mpc.model.G[:, 1], mpc.weights.R[1:1, 1:1], mpc.weights.Q)
     set_objective!(mpc; Q, R, Rr, Qf)
-    set_input_bounds!(mpc, umin = [-1.0; 0; zeros(4)], umax = [1.0; 1e30; 1e30; ones(4)])
+    set_input_bounds!(mpc, umin = [-1.0; 0; 0; zeros(4)], umax = [1.0; 1e30; 1e30; ones(4)])
     set_binary_controls!(mpc, collect(4:7))
     _set_example_settings!(mpc, settings, false)
 

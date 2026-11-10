@@ -77,6 +77,30 @@ Random.seed!(1234)
         DyadLinearMPC.mpc2mpqp(mpc)
     end
 
+    @testset "invpend_contact input bounds" begin
+        # Every control input has a finite lower bound, and the binary controls have the bounds {0, 1}.
+        # A missing lower bound of a binary control enters the linear term of the objective through
+        # the regularization (umin + umax)/2 of the binary controls.
+        ex = DyadLinearMPC.mpc_example(:invpend_contact, 4, 4)
+        mpc = ex.mpc
+        @test length(mpc.umin) == mpc.model.nu
+        @test all(>(-1e20), mpc.umin)
+        @test mpc.umin[mpc.binary_controls] == zeros(4)
+        @test mpc.umax[mpc.binary_controls] == ones(4)
+        DyadLinearMPC.setup!(mpc)
+        q = mpc.mpQP
+        @test maximum(abs, q.f) <= 1
+        @test maximum(abs, q.f_theta) < 1e5
+        @test maximum(abs, q.H) < 1e5
+        for x in (zeros(4), ex.scenarios[1].x0)
+            θ = DyadLinearMPC.form_parameter(mpc, x, nothing, nothing, nothing, nothing)
+            u, fval, exitflag, info = DyadLinearMPC.solve(mpc, θ)
+            @test exitflag == 1
+            @test isfinite(fval)
+            @test all(isfinite, u)
+        end
+    end
+
     @testset "MPCExample API" begin
         example = DyadLinearMPC.mpc_example("dc_motor")
         @test example isa DyadLinearMPC.MPCExample
