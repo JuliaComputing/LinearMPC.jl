@@ -13,6 +13,7 @@
 # the decision variable that holds its control one step later, and the binary decision variables of the
 # groups of deferred binary controls. The stored solution is discarded.
 function setup_bnb!(mpc::MPC)
+    isdefined(mpc,:bnb) && free_bnb_parallel!(mpc.bnb) # The threads of the previous setup
     mpQP = mpc.mpQP
     n, nu = length(mpQP.f), mpc.model.nu
     ms = length(mpQP.bu)-size(mpQP.A,1) # Number of simple bounds
@@ -56,7 +57,8 @@ function setup_bnb!(mpc::MPC)
         relaxed_senses[j] &= ~Cint(DAQP.BINARY)
     end
     mpc.bnb = BnBData(binary_ids,shift_ids,Float64[],deferred,groups,is_deferred,relaxed_senses,
-                      BnBPortfolioWorkspace[],Int[],Vector{BnBPortfolioWorkspace}[])
+                      BnBPortfolioWorkspace[],nothing,Int[],Vector{BnBPortfolioWorkspace}[],
+                      Dict{Vector{Int},Any}())
     priority = set_daqp_branch_priority!(mpc,ctrls,steps)
     setup_bnb_portfolio!(mpc,priority)
     setup_bnb_split!(mpc,priority,ctrls,steps)
@@ -77,6 +79,28 @@ function setup_bnb_portfolio!(mpc::MPC, priority)
     for b in rules
         push!(mpc.bnb.portfolio,new_bnb_workspace(mpc,b,priority,"bnb_portfolio"))
     end
+    mpc.bnb.parallel = new_parallel_solver([mpc.opt_model; [w.model for w in mpc.bnb.portfolio]])
+    return nothing
+end
+
+# The reusable parallel solver of DyadDAQP (DAQP.ParallelSolver, whose threads are created once) of the models,
+# or nothing if DyadDAQP lacks it or rejects the models (solve_parallel is then called by each solve)
+function new_parallel_solver(models; kwargs...)
+    isdefined(DAQP,:ParallelSolver) || return nothing
+    try
+        return DAQP.ParallelSolver(models; kwargs...)
+    catch e
+        e isa ArgumentError || rethrow()
+        return nothing
+    end
+end
+
+# Joins the threads of the parallel solvers of bnb (they are otherwise joined by their finalizers)
+function free_bnb_parallel!(bnb::BnBData)
+    bnb.parallel === nothing || DAQP.delete!(bnb.parallel)
+    bnb.parallel = nothing
+    foreach(ps -> ps === nothing || DAQP.delete!(ps), values(bnb.split_parallel))
+    empty!(bnb.split_parallel)
     return nothing
 end
 
@@ -121,10 +145,10 @@ end
 
 # Solves the DAQP model of the MPC, whose f and bounds are those of mpQP._f, mpQP._bu and mpQP._bl and whose
 # senses are `senses`, by its branch and bound together with the workspaces of the setting bnb_portfolio if there
-# are any (DAQP.solve_parallel), or with those of the setting bnb_split (see daqp_solve_split). These are updated
-# with the same QP and the current settings of the workspace of the MPC with their branching rules. If DAQP
-# rejects them (e.g. after a change of a setting that applies to the setup), the workspace of the MPC is solved
-# alone.
+# are any (the reusable DAQP.ParallelSolver of BnBData.parallel, else DAQP.solve_parallel), or with those of the
+# setting bnb_split (see daqp_solve_split). These are updated with the same QP and the current settings of the
+# workspace of the MPC with their branching rules. If DAQP rejects them (e.g. after a change of a setting that
+# applies to the setup), the workspace of the MPC is solved alone.
 function daqp_solve_bnb(mpc::MPC, senses)
     isempty(mpc.bnb.split) || return daqp_solve_split(mpc, senses)
     P = mpc.bnb.portfolio
@@ -135,13 +159,20 @@ function daqp_solve_bnb(mpc::MPC, senses)
         update_bnb_workspace!(w, st, mpQP._f, mpQP._bu, mpQP._bl, senses)
     end
     try
-        return DAQP.solve_parallel([mpc.opt_model; [w.model for w in P]])
+        ps = mpc.bnb.parallel
+        return ps === nothing ? DAQP.solve_parallel([mpc.opt_model; [w.model for w in P]]) : DAQP.solve(ps)
     catch e
         e isa ArgumentError || rethrow()
         @warn "The workspaces of bnb_portfolio are not compatible with the workspace of the MPC, which is solved alone" maxlog=1 exception=e
         return DAQP.solve(mpc.opt_model)
     end
 end
+
+# The reusable parallel solver of the models in the groups (see new_parallel_solver), or nothing if DyadDAQP lacks
+# ParallelSolver with groups
+new_split_parallel_solver(models, groups) =
+    isdefined(DAQP,:ParallelSolver) && hasmethod(DAQP.ParallelSolver,Tuple{Vector{DyadDAQP.Model}},(:groups,)) ?
+        new_parallel_solver(models; groups) : nothing
 
 # Updates the workspace w with the settings st (with its branching rule), the linear term f, the bounds and the
 # senses
@@ -156,7 +187,9 @@ end
 # decision variables split_ids (their bounds mpQP._bl or mpQP._bu, a single value if these are equal), in which
 # they are fixed, with a workspace per branching rule (DAQP.solve_parallel with groups). The workspace of the MPC
 # replaces the workspace of its branching rule of the combination of the solution of the previous call (that of
-# the candidate of bnb_warm_start, whose working set it holds), or of the lower bounds if there is none.
+# the candidate of bnb_warm_start, whose working set it holds), or of the lower bounds if there is none. The models
+# and groups depend on the combinations that are searched (in this order), each list of which has a reusable
+# parallel solver (BnBData.split_parallel, created by the first solve with the list).
 function daqp_solve_split(mpc::MPC, senses)
     mpQP,bnb = mpc.mpQP,mpc.bnb
     ids = bnb.split_ids
@@ -171,11 +204,12 @@ function daqp_solve_split(mpc::MPC, senses)
         end
     end
     st = DAQP.settings(mpc.opt_model)
-    models,groups = DyadDAQP.Model[mpc.opt_model],Int[1]
+    models,groups,combinations = DyadDAQP.Model[mpc.opt_model],Int[1],Int[]
     cbu,cbl = copy(bu),copy(bl)
     for c in [own; setdiff(0:length(bnb.split)-1,own)]
         # A binary decision variable with equal bounds has a single value (bit 0)
         any(k -> (c >> (k-1)) & 1 == 1 && bu[ids[k]] == bl[ids[k]], eachindex(ids)) && continue
+        push!(combinations,c)
         for (k,j) in enumerate(ids)
             cbu[j] = cbl[j] = (c >> (k-1)) & 1 == 1 ? bu[j] : bl[j]
         end
@@ -191,7 +225,8 @@ function daqp_solve_split(mpc::MPC, senses)
         end
     end
     try
-        return DAQP.solve_parallel(models; groups)
+        ps = get!(() -> new_split_parallel_solver(models, groups), bnb.split_parallel, combinations)
+        return ps === nothing ? DAQP.solve_parallel(models; groups) : DAQP.solve(ps)
     catch e
         e isa ArgumentError || rethrow()
         @warn "The workspaces of bnb_split are not compatible with the workspace of the MPC, which is solved alone" maxlog=1 exception=e

@@ -78,7 +78,8 @@ MPC controller settings.
   DAQP workspaces that solve each branch and bound together with the workspace of the MPC, each on a thread of its
   own (`DAQP.solve_parallel`): the threads share the best integer-feasible solution, and the solve ends when the
   first of them has explored its tree. The workspaces are set up with the MPC and keep their warm start between
-  calls. Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
+  calls; with a version of DyadDAQP with `ParallelSolver`, so are the threads, which wait between the calls.
+  Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
 - `bnb_split::Int = 0`: Number of binary decision variables of the first time step (that are not deferred, in the
   order of `bnb_split_controls`) on which each branch and bound is split (`0`: no split). For each combination of their
   values (their lower or upper bound), the branch and bound with these binary decision variables fixed is solved by
@@ -89,8 +90,11 @@ MPC controller settings.
   complete. The workspace of the MPC searches the combination of the solution of the previous call (that of the
   candidate of `bnb_warm_start`), or that of the lower bounds if there is none. A binary decision variable whose
   bounds are equal has a single value, which halves the number of combinations. The workspaces are set up with
-  the MPC and keep their warm start between calls. Requires a version of DyadDAQP with the keyword `groups` of
-  `solve_parallel`; generated code solves with the workspace of the MPC only
+  the MPC and keep their warm start between calls; with a version of DyadDAQP with `ParallelSolver`, so are the
+  threads, by a parallel solver for each list of combinations that a solve searches (which depends on the
+  combination of the workspace of the MPC and on the binary decision variables with equal bounds), created by the
+  first solve with the list. Requires a version of DyadDAQP with the keyword `groups` of `solve_parallel`;
+  generated code solves with the workspace of the MPC only
 - `bnb_split_controls::Vector{Int} = Int[]`: Binary controls (indices of controls) whose binary decision variables of
   the first time step are candidates for `bnb_split`, in this order (empty: all binary controls in their order)
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
@@ -201,13 +205,19 @@ mutable struct BnBData
     is_deferred::Vector{Bool}     # Whether each binary decision variable is deferred
     relaxed_senses::Vector{Cint}  # The senses of the constraints with the deferred binary decision variables relaxed
     portfolio::Vector{BnBPortfolioWorkspace} # Additional workspaces of the setting bnb_portfolio
+    # The reusable parallel solver of the workspace of the MPC and those of portfolio (DAQP.ParallelSolver, see
+    # daqp_solve_bnb), or nothing
+    parallel::Any
     split_ids::Vector{Int}  # The binary decision variables of the setting bnb_split
     # For each combination of their values (bit k set: split_ids[k] at its upper bound), a workspace per branching
     # rule: that of the workspace of the MPC, then those of bnb_portfolio
     split::Vector{Vector{BnBPortfolioWorkspace}}
+    # The reusable parallel solvers of bnb_split (DAQP.ParallelSolver, or nothing), for each list of the combinations
+    # that a solve searches (see daqp_solve_split)
+    split_parallel::Dict{Vector{Int},Any}
 end
 BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[],BnBPortfolioWorkspace[],
-                    Int[],Vector{BnBPortfolioWorkspace}[])
+                    nothing,Int[],Vector{BnBPortfolioWorkspace}[],Dict{Vector{Int},Any}())
 
 # MPC controller
 mutable struct MPC

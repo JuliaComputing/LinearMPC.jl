@@ -1358,6 +1358,20 @@ Random.seed!(1234)
                     x = ref.model.F*x + ref.model.G*z0[1:3]
                 end
             end
+            # The reusable parallel solver of DyadDAQP if it has one; the solve without it (DAQP.solve_parallel)
+            # gives the same result
+            mpc = satellite_portfolio([1,2])
+            @test (mpc.bnb.parallel !== nothing) == isdefined(DAQPm,:ParallelSolver)
+            θ = θp(mpc,zeros(3),[0.5,0,0])
+            f1 = DyadLinearMPC.solve(mpc,θ)[2]
+            ps, mpc.bnb.parallel = mpc.bnb.parallel, nothing
+            @test DyadLinearMPC.solve(mpc,θ)[2] ≈ f1 atol=1e-6*(1+abs(f1))
+            mpc.bnb.parallel = ps
+            # A new setup frees the parallel solver of the previous one
+            setup!(mpc)
+            ps === nothing || @test ps.ptr == C_NULL
+            @test (mpc.bnb.parallel !== nothing) == isdefined(DAQPm,:ParallelSolver)
+            @test DyadLinearMPC.solve(mpc,θ)[2] ≈ f1 atol=1e-6*(1+abs(f1))
             # The workspaces of the portfolio follow the settings of the workspace of the MPC (except branching)
             mpc = satellite_portfolio([2])
             DAQPm.settings(mpc.opt_model,Dict(:abs_subopt=>0.5))
@@ -1410,7 +1424,26 @@ Random.seed!(1234)
                     @test info.nodes > 0
                     x = ref.model.F*x + ref.model.G*z0[1:3]
                 end
+                # A reusable parallel solver for each list of combinations searched, if DyadDAQP has them
+                has_ps = isdefined(DAQPm,:ParallelSolver) && hasmethod(DAQPm.ParallelSolver,Tuple{Vector{DAQPm.Model}},(:groups,))
+                @test !isempty(mpc.bnb.split_parallel)
+                @test all(ps -> (ps !== nothing) == has_ps, values(mpc.bnb.split_parallel))
+                @test all(c -> length(c) <= 2^split && allunique(c), keys(mpc.bnb.split_parallel))
             end
+            # The solves without the reusable parallel solvers (DAQP.solve_parallel) give the same result; a new setup
+            # frees them
+            mpc = satellite_split(2, [2])
+            θ = θp(mpc,zeros(3),[0.5,0,0])
+            f1 = DyadLinearMPC.solve(mpc,θ)[2]
+            cached = copy(mpc.bnb.split_parallel)
+            map!(_ -> nothing, values(mpc.bnb.split_parallel))
+            @test DyadLinearMPC.solve(mpc,θ)[2] ≈ f1 atol=1e-6*(1+abs(f1))
+            merge!(mpc.bnb.split_parallel, cached)
+            setup!(mpc)
+            @test isempty(mpc.bnb.split_parallel)
+            @test all(ps -> ps === nothing || ps.ptr == C_NULL, values(cached))
+            DAQPm.settings(mpc.opt_model,Dict(:abs_subopt=>0.0,:rel_subopt=>0.0))
+            @test DyadLinearMPC.solve(mpc,θ)[2] ≈ f1 atol=1e-6*(1+abs(f1))
             # The split binary decision variables are those of the first time step, in the order of the controls
             mpc = satellite_split(2, Int[])
             B = mpc.bnb.binary_ids
