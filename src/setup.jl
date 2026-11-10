@@ -38,6 +38,10 @@ Sets the input bounds umin ≤ u ≤ umax
 """
 function set_input_bounds!(mpc::MPC; umin=zeros(0), umax=zeros(0))
     nmin,nmax = length(umin),length(umax)
+    # A bound that is not given is padded with ∓1e30; two given bounds of different lengths are an error, since
+    # the padding would then remove a bound of the shorter one without notice
+    nmin > 0 && nmax > 0 && nmin != nmax &&
+        throw(ArgumentError("umin has $nmin elements and umax has $nmax; give both with one element per control"))
     nb = max(nmin,nmax)
     nb == 0 && return
     nb != mpc.model.nu  && @error("# of controls are $(mpc.model.nu), got bounds of dimension $nb")

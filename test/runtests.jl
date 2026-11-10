@@ -2895,6 +2895,8 @@ Random.seed!(1234)
     @testset "Setup warnings and early-return branches" begin
         mpc = DyadLinearMPC.MPC([1.0;;], [1.0;;]; C=[1.0;;], Np=2)
         @test_logs (:error, r"# of controls are 1") set_input_bounds!(mpc; umin=[-1.0, -2.0], umax=[1.0, 2.0])
+        # Given bounds of different lengths are rejected (the shorter one would be padded with ∓1e30)
+        @test_throws ArgumentError set_input_bounds!(mpc; umin=[-1.0], umax=[1.0, 2.0])
 
         n_constraints = length(mpc.constraints)
         add_constraint!(mpc)
