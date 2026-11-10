@@ -1374,6 +1374,53 @@ Random.seed!(1234)
         end
     end
 
+    @testset "Guided dive of the branch and bound" begin
+        DAQPm = DyadLinearMPC.DAQP
+        if !isdefined(DAQPm,:set_branch_preference)
+            @info "DyadDAQP without set_branch_preference: the tests of bnb_guided_dive are skipped"
+        else
+            # The branch and bound guided by the shifted previous solution gives the objective of the unguided one
+            # (abs_subopt = 0) in closed loop, without and with bnb_portfolio
+            function satellite_guided(guided, portfolio)
+                mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)
+                move_block!(mpc,[1,1,2,4,12])
+                mpc.settings.bnb_warm_start = true
+                mpc.settings.bnb_guided_dive = guided
+                mpc.settings.bnb_portfolio = portfolio
+                setup!(mpc)
+                return mpc
+            end
+            θg(mpc,x,r) = DyadLinearMPC.form_parameter(mpc,x,r,nothing,nothing,nothing)
+            for portfolio in (Int[], [2])
+                ref = satellite_guided(false, portfolio)
+                mpc = satellite_guided(true, portfolio)
+                x = zeros(3)
+                nodes_ref, nodes = 0, 0
+                for k in 1:20
+                    θ = θg(ref,x,[k <= 5 ? 0.0 : (k <= 12 ? 0.5 : -0.3),0,0])
+                    z0,f0,flag0,i0 = DyadLinearMPC.solve(ref,θ)
+                    z,f,flag,info = DyadLinearMPC.solve(mpc,θ)
+                    @test flag0 >= 1 && flag >= 1
+                    @test f ≈ f0 atol=1e-6*(1+abs(f0))
+                    nodes_ref += i0.nodes
+                    nodes += info.nodes
+                    x = ref.model.F*x + ref.model.G*z0[1:3]
+                end
+                @test DAQPm.settings(mpc.opt_model).child_order == DAQPm.DAQP_CHILD_PREFERRED
+                @test DAQPm.settings(ref.opt_model).child_order == DAQPm.DAQP_CHILD_NEAREST
+                @test nodes != nodes_ref # The guidance changes the explored trees
+                for w in mpc.bnb.portfolio
+                    @test DAQPm.settings(w.model).branching == 2
+                end
+            end
+            # Without bnb_warm_start, the guidance has no effect
+            mpc = satellite_guided(true, Int[])
+            mpc.settings.bnb_warm_start = false
+            DyadLinearMPC.solve(mpc,θg(mpc,zeros(3),[0.5,0,0]))
+            @test DAQPm.settings(mpc.opt_model).child_order == DAQPm.DAQP_CHILD_NEAREST
+        end
+    end
+
     @testset "Warm start of the branch and bound" begin
         function satellite(warm; abs_subopt=0.0)
             mpc,_ = DyadLinearMPC.mpc_examples("satellite",20)

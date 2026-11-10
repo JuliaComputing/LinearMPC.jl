@@ -79,6 +79,12 @@ MPC controller settings.
   own (`DAQP.solve_parallel`): the threads share the best integer-feasible solution, and the solve ends when the
   first of them has explored its tree. The workspaces are set up with the MPC and keep their warm start between
   calls. Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
+- `bnb_guided_dive::Bool = false`: With `bnb_warm_start` and a solution of the previous call, the branch and bound of
+  the workspace of the MPC explores first, at each binary decision variable, the child whose bound the solution of
+  the previous call shifted by one step takes (the values of the candidate of the warm start; child order
+  `DAQP_CHILD_PREFERRED` of DAQP), so that its first dive follows the previous plan. Without a previous solution, the
+  nearest child is explored first. The workspaces of `bnb_portfolio` explore the nearest child first. Requires a
+  version of DyadDAQP with `set_branch_preference` (otherwise it has no effect); not supported in generated code
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
 Base.@kwdef mutable struct MPCSettings
@@ -96,6 +102,7 @@ Base.@kwdef mutable struct MPCSettings
     branching::Int = 0
     branch_priority::Vector{Int} = Int[]
     bnb_portfolio::Vector{Int} = Int[]
+    bnb_guided_dive::Bool = false
     solver_opts::Dict{Symbol,Any} = Dict()
     traj2setpoint::Matrix{Float64} = zeros(0,0)
 end

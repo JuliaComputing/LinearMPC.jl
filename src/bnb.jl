@@ -97,6 +97,8 @@ function daqp_solve_bnb(mpc::MPC, senses)
     mpQP = mpc.mpQP
     st = DAQP.settings(mpc.opt_model)
     for w in P
+        # With bnb_guided_dive, the child order DAQP_CHILD_PREFERRED is copied, but the workspaces of the portfolio
+        # hold no preference and explore the nearest child first
         DAQP.settings(w.model,daqp_settings_with_branching(st,w.branching))
         DAQP.update(w.model,nothing,mpQP._f,nothing,mpQP._bu,mpQP._bl,w.senses === senses ? nothing : senses)
         w.senses = senses
@@ -336,6 +338,33 @@ end
 bnb_elapsed(s::BnBSolve) = (time_ns()-s.t0)/1e9
 bnb_at_time_limit(s::BnBSolve) = s.time_limit > 0 && bnb_elapsed(s) >= s.time_limit
 
+# Whether the branch and bound of the workspace of the MPC is guided by the previous solution (bnb_guided_dive)
+bnb_guided(mpc::MPC) = mpc.settings.bnb_guided_dive && mpc.settings.bnb_warm_start &&
+    isdefined(DAQP,:set_branch_preference) && !isempty(mpc.bnb.binary_ids)
+
+# Sets the preference of the branch and bound of the workspace of the MPC for the call `s` (bnb_guided_dive): each
+# binary decision variable prefers the bound that the shifted previous solution takes (as in bnb_candidate), and
+# the child order is DAQP_CHILD_PREFERRED. Without a previous solution, the preference is cleared, so that the
+# nearest child is explored first. The child order is part of s.settings, which bnb_qp! restores after each solve.
+function bnb_guide!(mpc::MPC, s::BnBSolve)
+    bnb_guided(mpc) || return nothing
+    model = mpc.opt_model
+    if length(mpc.bnb.xprev) == length(mpc.mpQP.f)
+        dirs = zeros(Int,length(mpc.mpQP.bu))
+        for (j,k) in zip(mpc.bnb.binary_ids,mpc.bnb.shift_ids)
+            dirs[j] = nearest_bound(mpc.bnb.xprev[k],s.bl[j],s.bu[j]) == s.bu[j] ? 1 : -1
+        end
+        DAQP.set_branch_preference(model,dirs)
+    else
+        DAQP.set_branch_preference(model,Int[])
+    end
+    if s.settings.child_order != DAQP.DAQP_CHILD_PREFERRED
+        DAQP.settings(model,Dict{Symbol,Any}(:child_order=>Cint(DAQP.DAQP_CHILD_PREFERRED)))
+        s.settings = DAQP.settings(model)
+    end
+    return nothing
+end
+
 # Margin of a cutoff, relative to 1+|J|. DAQP discards only the nodes whose objective exceeds fval_bound, so
 # that with abs_subopt = rel_subopt = 0 a search with the objective J of a solution as cutoff could find that
 # solution again, and whether it returns it or no solution would depend on rounding errors.
@@ -565,6 +594,7 @@ function solve_bnb(mpc::MPC,θ)
     end
     s = BnBSolve(mpc,θ)
     try
+        bnb_guide!(mpc,s)
         cand = bnb_candidate(mpc,s)
         isempty(mpc.bnb.groups) || return solve_deferred(mpc,s,cand)
         # The search only accepts solutions that are better than the candidate
