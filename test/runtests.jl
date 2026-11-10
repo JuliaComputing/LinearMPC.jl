@@ -1358,6 +1358,20 @@ Random.seed!(1234)
                     x = ref.model.F*x + ref.model.G*z0[1:3]
                 end
             end
+            # The reusable parallel solver of DyadDAQP if it has one; the solve without it (DAQP.solve_parallel)
+            # gives the same result
+            mpc = satellite_portfolio([1,2])
+            @test (mpc.bnb.parallel !== nothing) == isdefined(DAQPm,:ParallelSolver)
+            θ = θp(mpc,zeros(3),[0.5,0,0])
+            f1 = DyadLinearMPC.solve(mpc,θ)[2]
+            ps, mpc.bnb.parallel = mpc.bnb.parallel, nothing
+            @test DyadLinearMPC.solve(mpc,θ)[2] ≈ f1 atol=1e-6*(1+abs(f1))
+            mpc.bnb.parallel = ps
+            # A new setup frees the parallel solver of the previous one
+            setup!(mpc)
+            ps === nothing || @test ps.ptr == C_NULL
+            @test (mpc.bnb.parallel !== nothing) == isdefined(DAQPm,:ParallelSolver)
+            @test DyadLinearMPC.solve(mpc,θ)[2] ≈ f1 atol=1e-6*(1+abs(f1))
             # The workspaces of the portfolio follow the settings of the workspace of the MPC (except branching)
             mpc = satellite_portfolio([2])
             DAQPm.settings(mpc.opt_model,Dict(:abs_subopt=>0.5))

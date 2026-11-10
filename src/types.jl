@@ -78,7 +78,8 @@ MPC controller settings.
   DAQP workspaces that solve each branch and bound together with the workspace of the MPC, each on a thread of its
   own (`DAQP.solve_parallel`): the threads share the best integer-feasible solution, and the solve ends when the
   first of them has explored its tree. The workspaces are set up with the MPC and keep their warm start between
-  calls. Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
+  calls; with a version of DyadDAQP with `ParallelSolver`, so are the threads, which wait between the calls.
+  Requires a version of DyadDAQP with `solve_parallel`; generated code solves with the workspace of the MPC only
 - `solver_opts::Dict{Symbol,Any}`: Additional solver options
 """
 Base.@kwdef mutable struct MPCSettings
@@ -184,8 +185,12 @@ mutable struct BnBData
     is_deferred::Vector{Bool}     # Whether each binary decision variable is deferred
     relaxed_senses::Vector{Cint}  # The senses of the constraints with the deferred binary decision variables relaxed
     portfolio::Vector{BnBPortfolioWorkspace} # Additional workspaces of the setting bnb_portfolio
+    # The reusable parallel solver of the workspace of the MPC and those of portfolio (DAQP.ParallelSolver, see
+    # daqp_solve_bnb), or nothing
+    parallel::Any
 end
-BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[],BnBPortfolioWorkspace[])
+BnBData() = BnBData(Int[],Int[],Float64[],DeferredBinaryGroup[],BnBGroup[],Bool[],Cint[],BnBPortfolioWorkspace[],
+                    nothing)
 
 # MPC controller
 mutable struct MPC

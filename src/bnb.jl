@@ -13,6 +13,7 @@
 # the decision variable that holds its control one step later, and the binary decision variables of the
 # groups of deferred binary controls. The stored solution is discarded.
 function setup_bnb!(mpc::MPC)
+    isdefined(mpc,:bnb) && free_bnb_parallel!(mpc.bnb) # The threads of the previous setup
     mpQP = mpc.mpQP
     n, nu = length(mpQP.f), mpc.model.nu
     ms = length(mpQP.bu)-size(mpQP.A,1) # Number of simple bounds
@@ -56,7 +57,7 @@ function setup_bnb!(mpc::MPC)
         relaxed_senses[j] &= ~Cint(DAQP.BINARY)
     end
     mpc.bnb = BnBData(binary_ids,shift_ids,Float64[],deferred,groups,is_deferred,relaxed_senses,
-                      BnBPortfolioWorkspace[])
+                      BnBPortfolioWorkspace[],nothing)
     priority = set_daqp_branch_priority!(mpc,ctrls,steps)
     setup_bnb_portfolio!(mpc,priority)
 end
@@ -83,14 +84,34 @@ function setup_bnb_portfolio!(mpc::MPC, priority)
         b == 3 && !isempty(priority) && DAQP.set_branch_priority(m,priority)
         push!(mpc.bnb.portfolio,BnBPortfolioWorkspace(m,b,mpc.mpQP.senses))
     end
+    mpc.bnb.parallel = new_parallel_solver([mpc.opt_model; [w.model for w in mpc.bnb.portfolio]])
+    return nothing
+end
+
+# The reusable parallel solver of DyadDAQP (DAQP.ParallelSolver, whose threads are created once) of the models,
+# or nothing if DyadDAQP lacks it or rejects the models (solve_parallel is then called by each solve)
+function new_parallel_solver(models; kwargs...)
+    isdefined(DAQP,:ParallelSolver) || return nothing
+    try
+        return DAQP.ParallelSolver(models; kwargs...)
+    catch e
+        e isa ArgumentError || rethrow()
+        return nothing
+    end
+end
+
+# Joins the threads of the parallel solvers of bnb (they are otherwise joined by their finalizers)
+function free_bnb_parallel!(bnb::BnBData)
+    bnb.parallel === nothing || DAQP.delete!(bnb.parallel)
+    bnb.parallel = nothing
     return nothing
 end
 
 # Solves the DAQP model of the MPC, whose f and bounds are those of mpQP._f, mpQP._bu and mpQP._bl and whose
 # senses are `senses`, by its branch and bound together with the workspaces of the setting bnb_portfolio if there
-# are any (DAQP.solve_parallel). These are updated with the same QP and the current settings of the workspace of
-# the MPC with their branching rules. If DAQP rejects them (e.g. after a change of a setting that applies to the
-# setup), the workspace of the MPC is solved alone.
+# are any (the reusable DAQP.ParallelSolver of BnBData.parallel, else DAQP.solve_parallel). These are updated with
+# the same QP and the current settings of the workspace of the MPC with their branching rules. If DAQP rejects them
+# (e.g. after a change of a setting that applies to the setup), the workspace of the MPC is solved alone.
 function daqp_solve_bnb(mpc::MPC, senses)
     P = mpc.bnb.portfolio
     isempty(P) && return DAQP.solve(mpc.opt_model)
@@ -102,7 +123,8 @@ function daqp_solve_bnb(mpc::MPC, senses)
         w.senses = senses
     end
     try
-        return DAQP.solve_parallel([mpc.opt_model; [w.model for w in P]])
+        ps = mpc.bnb.parallel
+        return ps === nothing ? DAQP.solve_parallel([mpc.opt_model; [w.model for w in P]]) : DAQP.solve(ps)
     catch e
         e isa ArgumentError || rethrow()
         @warn "The workspaces of bnb_portfolio are not compatible with the workspace of the MPC, which is solved alone" maxlog=1 exception=e
